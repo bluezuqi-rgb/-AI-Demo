@@ -1,0 +1,3521 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>腾讯文档 - SAM 2 架构可视化</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #f5f6f7;
+  --tencent-blue: #0052D9;
+  --sidebar-bg: #F9F7F2;
+  --primary: #D97757;
+  --charcoal: #353535;
+  --light-gray: #D1D1D1;
+  --border: #e5e6eb;
+  --canvas-bg: #1a110f;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: #353535;
+  margin: 0; padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+.tencent-blue { color: var(--tencent-blue); }
+.bg-tencent-blue { background-color: var(--tencent-blue); }
+.tab-active {
+  color: var(--tencent-blue);
+  background-color: #e6f0ff;
+  border-radius: 9999px;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.paper-content { font-family: 'Times New Roman', Times, serif; }
+.paper-content p { text-align: justify; line-height: 1.6; margin-bottom: 1em; }
+.paper-caption { font-size: 0.9em; line-height: 1.4; margin-top: 1em; margin-bottom: 1.5em; }
+.paper-heading { font-weight: bold; font-family: 'Noto Sans SC', sans-serif; }
+
+/* ---- Canvas ---- */
+#canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--canvas-bg);
+  cursor: grab;
+}
+#canvas-container:active { cursor: grabbing; }
+#canvas-transform {
+  position: absolute;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* Module blocks on canvas */
+.module-block {
+  position: absolute;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: filter 0.2s;
+  user-select: none;
+}
+.module-block:hover { filter: brightness(1.2); }
+.module-block.active { filter: brightness(1.1); box-shadow: 0 0 0 3px var(--primary), 0 0 30px rgba(217,119,87,0.4); }
+
+/* Canvas SVG connectors */
+.canvas-svg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+
+/* ---- Detail Panel ---- */
+#detail-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 320px;
+  background: rgba(26,17,15,0.97);
+  border-top: 1px solid rgba(217,119,87,0.5);
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.3);
+}
+#detail-panel.visible {
+  display: flex;
+  animation: panelSlideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes panelSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(161,140,133,0.3);
+  flex-shrink: 0;
+}
+.detail-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #a38c85;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.detail-close {
+  width: 24px; height: 24px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: #a38c85;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+.detail-close:hover { background: rgba(255,255,255,0.15); color: #f0dfda; }
+.detail-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.detail-content-wrap {
+  position: absolute;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Zoom controls */
+.detail-zoom-controls {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+.zoom-btn {
+  width: 28px; height: 28px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  color: #a38c85;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  transition: background 0.2s;
+}
+.zoom-btn:hover { background: rgba(255,255,255,0.2); color: #f0dfda; }
+
+/* Back to overview button */
+.back-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 20px;
+  color: #a38c85;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+  z-index: 10;
+  transition: background 0.2s;
+}
+.back-btn:hover { background: rgba(255,255,255,0.15); color: #f0dfda; }
+
+/* Run button in detail */
+.detail-run-btn {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  padding: 5px 14px;
+  background: var(--tencent-blue);
+  border: none;
+  border-radius: 20px;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+  z-index: 10;
+  transition: background 0.2s;
+}
+.detail-run-btn:hover { background: #0041b0; }
+
+/* ========== Detail inner styles (SAM 2 Architecture Refined Style) ========== */
+.detail-inner {
+  font-family: 'Space Grotesk', sans-serif;
+  background: linear-gradient(180deg, #1a110f 0%, #231a17 100%);
+  color: #f0dfda;
+  min-width: 900px;
+  min-height: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Trapezoid shapes for encoders */
+.trapezoid-right {
+  clip-path: polygon(0 0, 100% 25%, 100% 75%, 0 100%);
+}
+.trapezoid-left {
+  clip-path: polygon(0 25%, 100% 0, 100% 100%, 0 75%);
+}
+
+/* Stacked squares for data tensors */
+.stacked-tensor {
+  position: relative;
+}
+.stacked-tensor::before,
+.stacked-tensor::after {
+  content: '';
+  position: absolute;
+  border-radius: 16px;
+  background: inherit;
+}
+.stacked-tensor::before {
+  top: -8px;
+  left: -8px;
+  opacity: 0.5;
+}
+.stacked-tensor::after {
+  top: -4px;
+  left: -4px;
+  opacity: 0.75;
+}
+
+.shadow-soft { box-shadow: 0 20px 40px rgba(0,0,0,0.05); }
+
+.connector-line {
+  width: 100%;
+  height: 2px;
+  border-top: 2px dashed #D1D5DB;
+  position: relative;
+}
+.connector-line::after {
+  content: '';
+  position: absolute;
+  right: -2px; top: -6px;
+  width: 0; height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #D1D5DB;
+}
+.connector-line.active-flow {
+  border-color: #D97757;
+  animation: marching-ants 0.5s linear infinite;
+}
+.connector-line.active-flow::after { border-left-color: #D97757; }
+@keyframes marching-ants {
+  0% { background-position: 0 0; }
+  100% { transform: translateX(4px); }
+}
+
+/* Detail SVG connectors */
+.detail-svg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+
+/* Image Encoder detail */
+@keyframes runProgress {
+  0% { width: 0%; }
+  62.5% { width: 0%; }
+  100% { width: 100%; }
+}
+.progress-container {
+  width: 140px; height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  position: absolute;
+  bottom: 30%;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.progress-bar {
+  width: 0%; height: 100%;
+  background: #D97757;
+  transition: width 1.2s linear;
+}
+.output-hidden-detail {
+  opacity: 0 !important;
+  transform: translateX(-80px) scale(0.2) !important;
+  transition: none !important;
+}
+.output-show-detail {
+  opacity: 1 !important;
+  transform: translateX(0) scale(1) !important;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.ingest-active-detail {
+  transform: translateX(160px) scale(0.2) !important;
+  opacity: 0 !important;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.inhale-active-detail {
+  transform: scale(1.1) !important;
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Memory encoder detail */
+.memory-connector {
+  width: 100%;
+  height: 2px;
+  border-top: 2px dashed #D1D5DB;
+  position: relative;
+}
+.memory-connector::after {
+  content: '';
+  position: absolute;
+  right: -2px; top: -6px;
+  width: 0; height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #D1D5DB;
+}
+.memory-connector.active-flow {
+  border-color: #D97757;
+  animation: marching-ants 0.5s linear infinite;
+}
+.memory-connector.active-flow::after { border-left-color: #D97757; }
+
+/* Module label chips */
+.module-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(217,119,87,0.15);
+  border: 1px solid rgba(217,119,87,0.4);
+  border-radius: 9999px;
+  font-size: 12px;
+  color: #D97757;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500;
+}
+
+/* Canvas module labels */
+.canvas-module-label {
+  position: absolute;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f0dfda;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.canvas-connector-path {
+  fill: none;
+  stroke: #55433d;
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+}
+.canvas-connector-path.active {
+  stroke: #D97757;
+  animation: marching-ants 0.5s linear infinite;
+}
+
+/* Module badge on canvas */
+.canvas-badge {
+  position: absolute;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px;
+  color: rgba(240,223,218,0.5);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Canvas zoom controls */
+.canvas-zoom-controls {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 50;
+}
+.canvas-zoom-btn {
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  color: #a38c85;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  transition: background 0.2s;
+}
+.canvas-zoom-btn:hover { background: rgba(255,255,255,0.15); color: #f0dfda; }
+.canvas-reset-btn {
+  width: 36px; height: 36px;
+  background: rgba(217,119,87,0.15);
+  border: 1px solid rgba(217,119,87,0.4);
+  border-radius: 8px;
+  color: #D97757;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.canvas-reset-btn:hover { background: rgba(217,119,87,0.3); }
+.canvas-zoom-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  color: rgba(163,140,133,0.7);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* Tooltip on canvas */
+.canvas-tooltip {
+  position: absolute;
+  background: rgba(38,30,27,0.95);
+  border: 1px solid rgba(217,119,87,0.4);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  color: #f0dfda;
+  pointer-events: none;
+  z-index: 200;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.canvas-tooltip.visible { opacity: 1; }
+
+/* Flow arrow on canvas */
+.flow-arrow {
+  fill: none;
+  stroke: #55433d;
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+}
+.flow-arrow.active {
+  stroke: #D97757;
+  animation: marching-ants 0.5s linear infinite;
+}
+
+/* Sidebar module hover effects */
+.sidebar-module-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar-module {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+  cursor: pointer;
+}
+.sidebar-module:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+.sidebar-module-tooltip {
+  position: absolute;
+  background: rgba(38,30,27,0.95);
+  border: 1px solid rgba(217,119,87,0.4);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  color: #f0dfda;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 200;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.sidebar-module-wrapper:hover .sidebar-module-tooltip {
+  opacity: 1;
+}
+
+/* IE Detail View Styles */
+.ie-panel-top, .ie-panel-bottom {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0;
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+.ie-panel-top.open, .ie-panel-bottom.open {
+  max-height: 300px;
+  opacity: 1;
+  padding: 24px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+  pointer-events: auto;
+}
+.ie-panel-top *, .ie-panel-bottom *,
+.ie-panel-top.open *, .ie-panel-bottom.open * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+.ie-connector-line.active-flow {
+  border-color: #D97757 !important;
+  animation: ie-marching-ants 0.5s linear infinite;
+}
+.ie-connector-line.active-flow::after {
+  border-left-color: #D97757 !important;
+}
+@keyframes ie-marching-ants {
+  0% { background-position: 0 0; transform: translateX(0); }
+  100% { transform: translateX(4px); }
+}
+
+/* IE Detail View Tooltip for +/- buttons */
+.ie-tooltip-wrapper {
+  position: relative;
+}
+.ie-tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  background: #1f2937;
+  color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 100;
+}
+.ie-tooltip-wrapper:hover .ie-tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* MA Detail View Styles */
+.ma-panel-top, .ma-panel-bottom {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0;
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+.ma-panel-top.open, .ma-panel-bottom.open {
+  max-height: 300px;
+  opacity: 1;
+  padding: 24px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+  pointer-events: auto;
+}
+.ma-panel-top *, .ma-panel-bottom *,
+.ma-panel-top.open *, .ma-panel-bottom.open * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+.ma-connector-line.active-flow {
+  border-color: #D97757 !important;
+  animation: ma-marching-ants 0.5s linear infinite;
+}
+.ma-connector-line.active-flow::after {
+  border-left-color: #D97757 !important;
+}
+@keyframes ma-marching-ants {
+  0% { background-position: 0 0; transform: translateX(0); }
+  100% { transform: translateX(4px); }
+}
+
+/* MA Detail View Tooltip for +/- buttons */
+.ma-tooltip-wrapper {
+  position: relative;
+}
+.ma-tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  background: #1f2937;
+  color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 100;
+}
+.ma-tooltip-wrapper:hover .ma-tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* MD Detail View Styles */
+.md-panel-top, .md-panel-bottom {
+  position: absolute;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 60;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+.md-panel-top {
+  bottom: calc(100% + 64px);
+  transform: translateY(20px) scale(0.95);
+}
+.md-panel-bottom {
+  top: calc(100% + 80px);
+  transform: translateY(-20px) scale(0.95);
+}
+.md-panel-top.open, .md-panel-bottom.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  padding: 16px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+}
+.md-panel-top *, .md-panel-bottom *,
+.md-panel-top.open *, .md-panel-bottom.open * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+.md-curve-path {
+  fill: none;
+  stroke: #D1D5DB;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  transition: stroke 0.3s ease;
+}
+.md-curve-arrow {
+  fill: #D1D5DB;
+  transition: fill 0.3s ease;
+}
+.md-connector-path {
+  fill: none;
+  stroke: #D1D5DB;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  transition: stroke 0.3s ease;
+}
+.md-connector-arrow {
+  fill: #D1D5DB;
+  transition: fill 0.3s ease;
+}
+.md-curve-path.active-flow, .md-connector-path.active-flow {
+  stroke: #D97757;
+  animation: md-dash-flow 0.5s linear infinite;
+}
+.md-curve-arrow.active-flow, .md-connector-arrow.active-flow {
+  fill: #D97757;
+}
+@keyframes md-dash-flow {
+  to { stroke-dashoffset: -10; }
+}
+.md-pulse-text {
+  animation: md-pulse-op 1s infinite;
+}
+@keyframes md-pulse-op {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); color: #D97757; }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* MD Animation Classes */
+.ingest-anim-active {
+  transform: translateX(150px) translateY(80px) scale(0.2);
+  opacity: 0;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ingest-anim-active-bottom {
+  transform: translateX(150px) translateY(-80px) scale(0.2);
+  opacity: 0;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.inhale-anim-active {
+  transform: scale(1.05);
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* MD Output States */
+.output-initial {
+  transform: translateX(0) scale(1);
+  opacity: 1;
+}
+.output-hidden {
+  opacity: 0 !important;
+  transform: translateX(-150px) scale(0.2) !important;
+  transition: none !important;
+}
+.output-projecting {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* MD Detail View Tooltip for +/- buttons */
+.md-tooltip-wrapper {
+  position: relative;
+}
+.md-tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  background: #1f2937;
+  color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 100;
+}
+.md-tooltip-wrapper:hover .md-tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ME Detail View Styles */
+.me-panel-top, .me-panel-bottom {
+  position: absolute;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 60;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+.me-panel-top {
+  bottom: calc(100% + 96px);
+  transform: translateY(20px) scale(0.95);
+}
+.me-panel-bottom {
+  top: calc(100% + 96px);
+  transform: translateY(-20px) scale(0.95);
+}
+.me-panel-top.open, .me-panel-bottom.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  padding: 16px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+}
+.me-panel-top *, .me-panel-bottom *,
+.me-panel-top.open *, .me-panel-bottom.open * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+.me-connector-line.active-flow {
+  border-color: #D97757;
+}
+.me-connector-line.active-flow::after {
+  border-left-color: #D97757;
+}
+
+/* ME Detail View Tooltip for +/- buttons */
+.me-tooltip-wrapper {
+  position: relative;
+}
+.me-tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  background: #1f2937;
+  color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 100;
+}
+.me-tooltip-wrapper:hover .me-tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ME Animation Classes */
+.me-ingest-anim-active {
+  transform: translateX(200px) scale(0.2);
+  opacity: 0;
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.me-inhale-anim-active {
+  transform: scale(1.05);
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.me-output-hidden {
+  opacity: 0 !important;
+  transform: translateX(-100px) scale(0.2) !important;
+  transition: none !important;
+}
+.me-output-projecting {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+<!-- ==================== TOP NAV ==================== -->
+<header class="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 shrink-0 z-50">
+  <div class="flex items-center space-x-4">
+    <div class="flex items-center space-x-2 text-tencent-blue cursor-pointer">
+      <span class="material-icons-outlined text-xl">description</span>
+      <span class="font-bold text-lg">腾讯文档</span>
+    </div>
+    <div class="h-5 w-px bg-gray-300"></div>
+    <div class="flex items-center space-x-2">
+      <span class="material-icons-outlined text-red-500 text-xl">picture_as_pdf</span>
+      <span class="text-sm font-medium">SAM 2 - Segment Anything in...</span>
+      <span class="material-icons-outlined text-gray-400 text-sm cursor-pointer hover:text-gray-600">close</span>
+    </div>
+    <span class="material-icons-outlined text-gray-400 text-sm cursor-pointer hover:text-gray-600">add</span>
+  </div>
+  <div class="flex items-center space-x-3 text-sm text-gray-500">
+    <div class="flex items-center space-x-1 cursor-pointer hover:bg-gray-100 px-2 py-1 rounded">
+      <span>只能查看</span><span class="material-icons-outlined text-xs">arrow_drop_down</span>
+    </div>
+    <span class="material-icons-outlined cursor-pointer hover:text-gray-700">star_border</span>
+    <span class="material-icons-outlined cursor-pointer hover:text-gray-700">save</span>
+    <span class="material-icons-outlined cursor-pointer hover:text-gray-700">folder_open</span>
+    <span class="material-icons-outlined cursor-pointer hover:text-gray-700">more_horiz</span>
+  </div>
+  <div class="flex items-center space-x-4">
+    <span class="material-icons-outlined text-gray-500 cursor-pointer hover:text-gray-700">menu</span>
+    <span class="material-icons-outlined text-gray-500 cursor-pointer hover:text-gray-700">history</span>
+    <span class="material-icons-outlined text-gray-500 cursor-pointer hover:text-gray-700">comment</span>
+    <div class="flex items-center space-x-1 cursor-pointer">
+      <span class="material-icons-outlined text-gray-500 hover:text-gray-700">people_outline</span>
+      <span class="text-xs bg-red-500 text-white rounded-full px-1.5 py-0.5">999+</span>
+    </div>
+    <button class="bg-tencent-blue text-white px-4 py-1.5 rounded text-sm hover:bg-blue-600 transition-colors">分享</button>
+    <div class="w-8 h-8 rounded-full bg-gray-300 overflow-hidden cursor-pointer">
+      <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCjIy2WrdE_OzOFZKlYK8VUOxE5LjmDZ72gSIm2yrNszqm4JmP-n0VmI556s3aLjycW1scGJMaa2eg4XyJ6JQPHrcHP11YuPFihuM875xOSdtPHMmPLXZq3JorwPmofGoECM2Hj7PvOweU1CWoyAjHnrhf40ObMpSRUsEtX3rEyoWBJU63DXz2tTmm4vAKAmNf-2x-RpbvrQQS5cocSPSZNeeXeyJp6KBvKnxtsYfky_11hDDsq33kw-IdOchHLS2D61S626bGaYUE" class="w-full h-full object-cover"/>
+    </div>
+  </div>
+</header>
+
+<!-- ==================== RIBBON ==================== -->
+<nav class="flex flex-col bg-white border-b border-gray-200 shrink-0">
+  <div class="flex px-4 py-2 space-x-6 text-sm text-gray-600 border-b border-gray-100">
+    <span class="font-medium text-black border-b-2 border-tencent-blue pb-2 -mb-2 cursor-pointer">开始</span>
+    <span class="cursor-pointer hover:text-tencent-blue">批注</span>
+    <span class="cursor-pointer hover:text-tencent-blue">编辑</span>
+    <span class="cursor-pointer hover:text-tencent-blue">格式转换</span>
+    <span class="cursor-pointer hover:text-tencent-blue">阅读</span>
+    <span class="cursor-pointer hover:text-tencent-blue">效率工具</span>
+    <span class="cursor-pointer hover:text-tencent-blue">会员专享</span>
+  </div>
+  <div class="flex items-center px-4 py-2 space-x-4 text-gray-600 overflow-x-auto whitespace-nowrap">
+    <div class="flex space-x-2"><span class="material-icons-outlined text-gray-400 cursor-not-allowed">undo</span><span class="material-icons-outlined text-gray-400 cursor-not-allowed">redo</span></div>
+    <div class="h-5 w-px bg-gray-300"></div>
+    <div class="flex space-x-3">
+      <div class="flex items-center space-x-1 cursor-pointer hover:text-black text-sm"><span class="material-icons-outlined text-sm">pan_tool</span></div>
+      <div class="flex items-center space-x-1 cursor-pointer hover:text-black text-sm"><span class="material-icons-outlined text-sm">crop</span><span>滚屏</span></div>
+      <div class="flex items-center space-x-1 cursor-pointer hover:text-black text-sm"><span class="material-icons-outlined text-sm">rotate_right</span><span>旋转</span></div>
+    </div>
+    <div class="h-5 w-px bg-gray-300"></div>
+    <div class="flex space-x-3">
+      <span class="material-icons-outlined cursor-pointer hover:text-black">edit</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">format_underlined</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">strikethrough_s</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">border_color</span>
+    </div>
+    <div class="h-5 w-px bg-gray-300"></div>
+    <div class="flex space-x-3">
+      <span class="material-icons-outlined cursor-pointer hover:text-black">text_fields</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">crop_square</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">change_history</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">panorama</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">emoji_emotions</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">add_location_alt</span>
+    </div>
+    <div class="h-5 w-px bg-gray-300"></div>
+    <div class="flex space-x-4">
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">edit_document</span><span class="text-[10px] mt-0.5">编辑</span></div>
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">picture_as_pdf</span><span class="text-[10px] mt-0.5">PDF转Word</span></div>
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">image</span><span class="text-[10px] mt-0.5">PDF转图片</span></div>
+    </div>
+    <div class="h-5 w-px bg-gray-300"></div>
+    <div class="flex space-x-4">
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">auto_awesome</span><span class="text-[10px] mt-0.5">总结全文</span></div>
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">record_voice_over</span><span class="text-[10px] mt-0.5">AI播客</span></div>
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">translate</span><span class="text-[10px] mt-0.5">全文翻译</span></div>
+    </div>
+    <div class="h-5 w-px bg-gray-300"></div>
+    <div class="flex space-x-4">
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">view_carousel</span><span class="text-[10px] mt-0.5">拆分合并</span></div>
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">compress</span><span class="text-[10px] mt-0.5">文件瘦身</span></div>
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">construction</span><span class="text-[10px] mt-0.5">快捷工具</span></div>
+      <div class="flex flex-col items-center justify-center cursor-pointer hover:text-black"><span class="material-icons-outlined text-lg">print</span><span class="text-[10px] mt-0.5">打印</span></div>
+    </div>
+    <div class="flex-grow"></div>
+    <div class="flex space-x-3 items-center">
+      <span class="material-icons-outlined cursor-pointer hover:text-black">search</span>
+      <span class="material-icons-outlined cursor-pointer hover:text-black">keyboard_arrow_down</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ==================== MAIN AREA ==================== -->
+<main class="flex-grow flex overflow-hidden">
+
+  <!-- Left margin -->
+  <aside class="w-12 bg-[#f0f0f4] border-r border-gray-300 flex flex-col items-center py-4 shrink-0 overflow-y-auto">
+    <div class="text-xs text-gray-500">4</div>
+  </aside>
+
+  <!-- Center content -->
+  <div class="flex-grow flex overflow-hidden">
+
+    <!-- ===== VIEW: OVERVIEW (initial) ===== -->
+    <div id="view-overview" class="flex-grow flex justify-center overflow-auto p-8 transition-opacity duration-500" style="display:flex">
+      <article class="bg-white shadow-md w-full max-w-[850px] min-h-[1100px] p-12 flex flex-col relative paper-content text-black">
+        <div class="mt-8">
+          <div class="mb-8 border border-gray-200 p-4 relative flex justify-center">
+            <img alt="SAM 2 Architecture Diagram" class="max-w-full h-auto object-contain" src="屏幕截图.png"/>
+          </div>
+          <div class="paper-caption text-sm text-gray-800">
+            <strong>Figure 3</strong> The SAM 2 architecture. For a given frame, the segmentation prediction is conditioned on the current prompt <i>and/or</i> on previously observed memories. Videos are processed in a <i>streaming</i> fashion with frames being consumed one at a time by the image encoder, and cross-attended to memories of the target object from previous frames. The mask decoder, which optionally also takes input prompts, predicts the segmentation mask for that frame. Finally, a memory encoder transforms the prediction and image encoder embeddings (not shown in the figure) for use in future frames.
+          </div>
+          <p id="text-image-encoder">
+            <span class="paper-heading text-base">Image encoder.</span> For real-time processing of arbitrarily long videos, we take a streaming approach, consuming video frames as they become available. The image encoder is only run <i>once</i> for the entire interaction and its role is to provide unconditioned tokens (feature embeddings) representing each frame. We use an MAE <a class="text-blue-600 hover:underline" href="#">(He et al., 2022)</a> pre-trained Hiera <a class="text-blue-600 hover:underline" href="#">(Ryali et al., 2023; Bolya et al., 2023)</a> image encoder, which is <i>hierarchical</i>, allowing us to use multiscale features during decoding.
+          </p>
+          <p id="text-memory-attention">
+            <span class="paper-heading text-base">Memory attention.</span> To condition the image embeddings on relevant target-object memories, we use a transformer block with q-channel attention (not kv-attention). The key and value tensors are the set of memory embeddings, and the queries are the current-frame image embeddings. This design allows the memory bank to be arbitrarily large without scaling the computational cost quadratically.
+          </p>
+          <p id="text-mask-decoder">
+            <span class="paper-heading text-base">Mask decoder.</span> The mask decoder uses a two-way transformer to decode image embeddings and prompt tokens into a mask. It iteratively updates masks via self-attention and cross-attention, and uses a lightweight head to produce the final mask. Masks are upscaled to the original resolution using transposed convolutions.
+          </p>
+          <p id="text-memory-encoder">
+            <span class="paper-heading text-base">Memory encoder.</span> After each frame prediction, the memory encoder produces a memory embedding from the current frame's segmentation mask and image encoder features. This embedding is then stored in a memory bank for use in subsequent frames. The memory encoder uses a lightweight CNN to compress spatial information.
+          </p>
+        </div>
+      </article>
+    </div>
+
+  </div><!-- /center content -->
+
+  <!-- ==================== AI SIDEBAR ==================== -->
+  <aside class="w-80 bg-white border-l border-gray-200 flex flex-col shrink-0 shadow-[-2px_0_5px_rgba(0,0,0,0.05)] z-10 relative">
+
+    <!-- Sidebar Header -->
+    <div class="flex items-center justify-between p-4 border-b border-gray-100">
+      <div class="flex items-center space-x-2 text-teal-500">
+        <span class="material-icons-outlined">auto_awesome</span>
+        <span class="font-bold text-gray-800">AI文档助手</span>
+      </div>
+      <div class="flex items-center space-x-2 text-gray-400">
+        <span class="material-icons-outlined cursor-pointer hover:text-gray-600 text-sm">more_horiz</span>
+        <span class="material-icons-outlined cursor-pointer hover:text-gray-600 text-sm">close</span>
+      </div>
+    </div>
+
+    <!-- Main Tabs -->
+    <div class="flex px-4 py-2 border-b border-gray-100 space-x-4 text-sm font-medium">
+      <span class="cursor-pointer text-gray-500 hover:text-black" id="tab-session">会话</span>
+      <span class="cursor-pointer text-black border-b-2 border-tencent-blue pb-2 -mb-2" id="tab-summary">总结</span>
+    </div>
+
+    <!-- Content Area -->
+    <div class="flex-grow overflow-y-auto p-4" style="background:#F9F7F2">
+
+      <!-- Sub-tabs -->
+      <div class="flex space-x-2 mb-4 bg-white rounded-full p-1 border border-gray-200 shadow-sm text-xs overflow-x-auto whitespace-nowrap no-scrollbar">
+        <button class="px-3 py-1 text-gray-600 rounded-full hover:bg-gray-100" id="subtab-overview" onclick="switchSubTab('overview')">概览</button>
+        <button class="px-3 py-1 text-gray-600 rounded-full hover:bg-gray-100" id="subtab-detail" onclick="switchSubTab('detail')">精读</button>
+        <button class="px-3 py-1 text-gray-600 rounded-full hover:bg-gray-100" id="subtab-mindmap" onclick="switchSubTab('mindmap')">思维导图</button>
+        <button class="px-3 py-1 text-gray-600 rounded-full hover:bg-gray-100" id="subtab-core" onclick="switchSubTab('core')">流程解构</button>
+      </div>
+
+      <!-- ===== SUBTAB: OVERVIEW ===== -->
+      <div id="content-overview" class="subtab-content text-sm text-gray-800 space-y-4">
+        <p>这篇论文介绍了Segment Anything Model 2 (SAM 2)，这是一个用于图像和视频中可提示视觉分割的基础模型。</p>
+        <div>
+          <h3 class="font-bold mb-2 text-gray-900">研究背景：</h3>
+          <ul class="list-disc pl-5 space-y-2">
+            <li><strong>问题：</strong>尽管SA模型在图像分割方面取得了显著进展，但视频分割仍面临挑战。</li>
+            <li><strong>难点：</strong>处理低质量视频、高效处理大量帧以及实体的复杂运动和外观变化。</li>
+            <li><strong>相关工作：</strong>现有方法在处理"视频中任何对象的任意分割"方面存在不足。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ===== SUBTAB: DETAIL ===== -->
+      <div id="content-detail" class="subtab-content text-sm text-gray-800 hidden">
+        <p class="mb-3">SAM 2 包含四个核心模块：</p>
+        <div class="space-y-2">
+          <div class="bg-white rounded-lg p-3 border border-gray-100">
+            <div class="font-medium text-gray-900 text-xs mb-1">Image Encoder</div>
+            <div class="text-gray-600 text-xs">使用 MAE 预训练的 Hiera 图像编码器，为每一帧提供无条件 token。</div>
+          </div>
+          <div class="bg-white rounded-lg p-3 border border-gray-100">
+            <div class="font-medium text-gray-900 text-xs mb-1">Memory Attention</div>
+            <div class="text-gray-600 text-xs">使用 q-channel 注意力将当前帧特征与历史记忆关联，支持任意大小的记忆库。</div>
+          </div>
+          <div class="bg-white rounded-lg p-3 border border-gray-100">
+            <div class="font-medium text-gray-900 text-xs mb-1">Mask Decoder</div>
+            <div class="text-gray-600 text-xs">双向 Transformer 解码器，通过转置卷积上采样生成最终分割掩码。</div>
+          </div>
+          <div class="bg-white rounded-lg p-3 border border-gray-100">
+            <div class="font-medium text-gray-900 text-xs mb-1">Memory Encoder</div>
+            <div class="text-gray-600 text-xs">轻量级 CNN，将分割掩码和图像特征压缩为记忆嵌入，存入记忆库。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SUBTAB: MINDMAP ===== -->
+      <div id="content-mindmap" class="subtab-content text-sm text-gray-800 hidden">
+        <div class="bg-white rounded-xl p-4 border border-gray-100">
+          <div class="text-center font-bold text-gray-900 text-sm mb-4">SAM 2 架构思维导图</div>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <div style="width:8px;height:8px;background:#D97757;border-radius:50%;flex-shrink:0;margin-top:6px;"></div>
+              <span class="font-medium text-gray-900">SAM 2</span>
+            </div>
+            <div style="margin-left:16px;padding-left:12px;border-left:2px solid #e5e6eb;" class="space-y-2 py-1">
+              <div class="flex items-center gap-2">
+                <div style="width:6px;height:6px;background:#0052D9;border-radius:50%;flex-shrink:0;margin-top:5px;"></div>
+                <span>Image Encoder (Hiera)</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <div style="width:6px;height:6px;background:#0052D9;border-radius:50%;flex-shrink:0;margin-top:5px;"></div>
+                <span>Memory Attention</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <div style="width:6px;height:6px;background:#0052D9;border-radius:50%;flex-shrink:0;margin-top:5px;"></div>
+                <span>Mask Decoder</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <div style="width:6px;height:6px;background:#0052D9;border-radius:50%;flex-shrink:0;margin-top:5px;"></div>
+                <span>Memory Encoder</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <div style="width:6px;height:6px;background:#0052D9;border-radius:50%;flex-shrink:0;margin-top:5px;"></div>
+                <span>Memory Bank</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SUBTAB: CORE (Architecture Canvas) ===== -->
+      <div id="content-core" class="subtab-content hidden p-0 m-0">
+        <div style="width:100%;height:520px;background:#F9F7F2;border:1px solid #e5e6eb;border-radius:12px;overflow:hidden;position:relative;" id="arch-viewport">
+          <h4 style="position:absolute;top:10px;left:14px;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;z-index:20;">SAM 2 Architecture</h4>
+
+          <!-- Back Button (shown when in detail view) -->
+          <button id="back-to-overview-btn" onclick="showOverviewFlow()" style="position:absolute;top:10px;right:14px;z-index:40;display:none;align-items:center;gap:4px;padding:6px 12px;background:rgba(255,255,255,0.9);border:1px solid #e5e6eb;border-radius:20px;cursor:pointer;font-size:12px;color:#353535;font-weight:500;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.08);" onmouseover="this.style.background='rgba(255,255,255,1)';this.style.borderColor='#D97757';this.style.color='#D97757';" onmouseout="this.style.background='rgba(255,255,255,0.9)';this.style.borderColor='#e5e6eb';this.style.color='#353535';">
+            <span class="material-icons-outlined" style="font-size:16px;">arrow_back</span>
+            <span>返回总览</span>
+          </button>
+
+          <!-- Overview Architecture Canvas -->
+          <div id="arch-canvas" style="transform:scale(0.6);transform-origin:center center;transition:transform 300ms cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;cursor:grab;position:absolute;top:0;left:0;width:100%;height:100%;">
+            <div style="position:relative;width:1200px;height:600px;margin:0 auto;display:flex;align-items:center;justify-content:center;transform:translateX(-450px);">
+              <!-- SVG Connectors Layer -->
+              <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <marker id="arrow-diag" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="8" refy="5" viewbox="0 0 10 10">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#9CA3AF"></path>
+                  </marker>
+                </defs>
+                <!-- Prompt inputs vertical arrows (centered on mask decoder axis) -->
+                <line marker-end="url(#arrow-diag)" stroke="#9CA3AF" stroke-width="2" x1="505" x2="505" y1="420" y2="390"></line>
+                <line marker-end="url(#arrow-diag)" stroke="#9CA3AF" stroke-width="2" x1="535" x2="535" y1="420" y2="390"></line>
+                <line marker-end="url(#arrow-diag)" stroke="#9CA3AF" stroke-width="2" x1="565" x2="565" y1="420" y2="390"></line>
+                <line marker-end="url(#arrow-diag)" stroke="#9CA3AF" stroke-width="2" x1="535" x2="535" y1="350" y2="330"></line>
+                <!-- Feedback loop from memory bank to memory attention -->
+                <polyline fill="none" marker-end="url(#arrow-diag)" points="975,270 975,180 370,180 370,255" stroke="#9CA3AF" stroke-width="2"></polyline>
+              </svg>
+              <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 40px;z-index:10;">
+                <div style="display:flex;align-items:center;gap:24px;justify-content:center;">
+                  <!-- Input stack -->
+                  <div style="display:flex;align-items:center;">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-right:0;">
+                      <div style="position:relative;width:100px;height:100px;">
+                        <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:12px;top:-6px;left:-6px;opacity:0.6;"></div>
+                        <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:12px;top:-3px;left:-3px;opacity:0.8;"></div>
+                        <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:12px;top:0;left:0;z-index:10;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;">[3, H, W]</div>
+                      </div>
+                    </div>
+                    <div style="width:20px;height:2px;background:#9CA3AF;margin-left:2px;position:relative;"><div style="position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid #9CA3AF;"></div></div>
+                  </div>
+                  <!-- Image Encoder -->
+                  <div style="display:flex;align-items:center;">
+                    <div class="sidebar-module-wrapper">
+                      <div class="sidebar-module" onclick="showIEDetail()" oncontextmenu="jumpToParagraph(event, 'image-encoder')" onmouseenter="highlightText('text-image-encoder')" onmouseleave="unhighlightText('text-image-encoder')" style="width:100px;height:140px;background:#353535;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;text-align:center;font-size:14px;padding:8px;clip-path:polygon(0 0, 100% 25%, 100% 75%, 0 100%);">image<br/>encoder</div>
+                      <span class="sidebar-module-tooltip">点击查看详情</span>
+                    </div>
+                    <div style="width:20px;height:2px;background:#9CA3AF;margin-left:2px;position:relative;"><div style="position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid #9CA3AF;"></div></div>
+                  </div>
+                  <!-- Memory Attention -->
+                  <div style="display:flex;align-items:center;">
+                    <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+                      <div class="sidebar-module-wrapper">
+                        <div class="sidebar-module" onclick="showMADetail()" oncontextmenu="jumpToParagraph(event, 'memory-attention')" onmouseenter="highlightText('text-memory-attention')" onmouseleave="unhighlightText('text-memory-attention')" style="width:80px;height:90px;background:#4B4B4B;border-radius:12px;color:white;text-align:center;display:flex;align-items:center;justify-content:center;font-size:14px;padding:8px;">memory<br/>attention</div>
+                        <span class="sidebar-module-tooltip">点击查看详情</span>
+                      </div>
+                      <div style="position:absolute;bottom:-24px;width:20px;height:20px;background:white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#9CA3AF;font-size:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">+</div>
+                    </div>
+                    <div style="width:20px;height:2px;background:#9CA3AF;margin-left:2px;position:relative;"><div style="position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid #9CA3AF;"></div></div>
+                  </div>
+                  <!-- Mask Decoder -->
+                  <div style="display:flex;align-items:center;">
+                    <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+                      <div style="position:absolute;top:-24px;width:20px;height:20px;background:white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#9CA3AF;font-size:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">+</div>
+                      <div class="sidebar-module-wrapper">
+                        <div class="sidebar-module" onclick="showMDDetail()" oncontextmenu="jumpToParagraph(event, 'mask-decoder')" onmouseenter="highlightText('text-mask-decoder')" onmouseleave="unhighlightText('text-mask-decoder')" style="width:120px;height:60px;background:#2A2A2A;border-radius:12px;color:white;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:14px;">mask decoder</div>
+                        <span class="sidebar-module-tooltip">点击查看详情</span>
+                      </div>
+                      <div style="position:absolute;bottom:-56px;width:120px;height:36px;background:#8B8B8B;border-radius:18px;display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:500;">prompt encoder</div>
+                      <div style="position:absolute;bottom:-107px;width:120px;display:flex;justify-content:space-between;padding:0 8px;font-size:11px;color:#9CA3AF;font-weight:500;"><span>mask</span><span>points</span><span>box</span></div>
+                    </div>
+                    <div style="width:20px;height:2px;background:#9CA3AF;margin-left:2px;position:relative;"><div style="position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid #9CA3AF;"></div></div>
+                  </div>
+                  <!-- Empty block -->
+                  <div style="display:flex;align-items:center;">
+                    <div style="width:80px;height:90px;background:#353535;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+                    <div style="width:20px;height:2px;background:#9CA3AF;margin-left:2px;position:relative;"><div style="position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid #9CA3AF;"></div></div>
+                  </div>
+                  <!-- Memory Encoder -->
+                  <div style="display:flex;align-items:center;">
+                    <div class="sidebar-module-wrapper">
+                      <div class="sidebar-module" onclick="showMEDetail()" oncontextmenu="jumpToParagraph(event, 'memory-encoder')" onmouseenter="highlightText('text-memory-encoder')" onmouseleave="unhighlightText('text-memory-encoder')" style="width:100px;height:140px;background:#353535;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;text-align:center;font-size:14px;padding:8px;clip-path:polygon(0 25%, 100% 0, 100% 100%, 0 75%);">memory<br/>encoder</div>
+                      <span class="sidebar-module-tooltip">点击查看详情</span>
+                    </div>
+                    <div style="width:20px;height:2px;background:#9CA3AF;margin-left:2px;position:relative;"><div style="position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid #9CA3AF;"></div></div>
+                  </div>
+                  <!-- Memory Bank -->
+                  <div style="display:flex;align-items:center;">
+                    <div style="width:80px;height:60px;background:#A54F31;border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:500;text-align:center;padding:4px;">memory<br/>bank</div>
+                    <div style="width:20px;height:2px;background:#9CA3AF;margin-left:2px;position:relative;"><div style="position:absolute;right:-4px;top:-3px;width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid #9CA3AF;"></div></div>
+                  </div>
+                  <!-- Output stack -->
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-left:16px;">
+                    <div style="position:relative;width:80px;height:80px;">
+                      <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:12px;opacity:0.6;"></div>
+                      <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:12px;top:-3px;left:-3px;opacity:0.8;"></div>
+                      <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:12px;top:0;left:0;z-index:10;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">[3, H, W]</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Zoom Controls -->
+          <div id="zoom-controls-overview" style="position:absolute;bottom:14px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:30;">
+            <div id="zoom-tooltip" style="position:absolute;bottom:100%;right:0;margin-bottom:6px;padding:2px 8px;background:#1f2937;color:white;font-size:10px;border-radius:4px;opacity:0;transition:opacity 300ms;pointer-events:none;">60%</div>
+            <button id="zoom-out-btn-sidebar" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+              <span class="material-icons-outlined" style="font-size:18px;color:#6B7280;">remove</span>
+            </button>
+            <button id="zoom-in-btn-sidebar" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+              <span class="material-icons-outlined" style="font-size:18px;color:#0052D9;">add</span>
+            </button>
+            <!-- Reload Button -->
+            <button id="reload-btn-sidebar" onclick="reloadCoreFlow()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;margin-top:4px;" title="重新加载">
+              <span class="material-icons-outlined" style="font-size:18px;color:#D97757;">refresh</span>
+            </button>
+          </div>
+
+          <!-- Image Encoder Detail View (hidden by default) -->
+          <div id="ie-detail-view" style="position:absolute;top:0;left:0;width:100%;height:100%;background:#F9F7F2;display:none;opacity:0;transition:opacity 0.4s ease;z-index:25;overflow:hidden;">
+            <div style="position:absolute;top:10px;left:14px;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;z-index:20;">MODULE 001 · IMAGE ENCODER</div>
+
+            <!-- Scalable Diagram Container -->
+            <div id="ie-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scale(0.55);transform-origin:center center;transition:transform 300ms cubic-bezier(0.4,0,0.2,1);cursor:grab;">
+              <!-- Fixed Horizontal Baseline Container -->
+              <div style="display:flex;align-items:center;justify-content:space-between;width:100%;height:100%;padding:0 20px;position:relative;">
+                <!-- Input Tensor Stack (Left) -->
+                <div id="ie-input-tensor" style="position:relative;width:128px;height:128px;flex-shrink:0;cursor:pointer;transition:all 0.7s cubic-bezier(0.4,0,0.2,1);z-index:20;">
+                  <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:24px;top:-6px;left:-6px;opacity:0.4;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                  <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:24px;top:-3px;left:-3px;opacity:0.7;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                  <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:24px;top:0;left:0;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.2);box-shadow:0 20px 40px rgba(0,0,0,0.05);color:white;font-weight:700;font-size:12px;">[1, 3, 256, 256]</div>
+                  <div style="position:absolute;top:140px;left:0;right:0;text-align:center;font-size:12px;color:#54433e;">[1, 3, 256, 256]</div>
+                </div>
+                <!-- Flow Connector 1 -->
+                <div style="flex:1;height:2px;position:relative;display:flex;align-items:center;margin:0 16px;z-index:5;">
+                  <div id="ie-conn1-detail" class="ie-connector-line" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;transition:border-color 0.3s ease;">
+                    <div style="position:absolute;right:-2px;top:-6px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #D1D5DB;transition:border-left-color 0.3s ease;"></div>
+                  </div>
+                </div>
+                <!-- Center Trapezoid & Absolute Panels -->
+                <div style="position:relative;display:flex;align-items:center;justify-content:center;z-index:30;flex-shrink:0;">
+                  <!-- Top Panel -->
+                  <div id="ie-top-panel" class="ie-panel-top" style="position:absolute;bottom:100%;margin-bottom:64px;background:#EFEBE1;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:320px;font-size:14px;color:#54433e;z-index:50;">
+                    <h4 style="font-weight:600;margin-bottom:8px;">架构细节</h4>
+                    <p style="margin:0;line-height:1.6;">图像编码器采用 Vision Transformer (ViT) 架构，将空间块处理为潜在表示。通过连续的投影层实现降维。</p>
+                  </div>
+                  <!-- Top Expand Button -->
+                  <div class="ie-tooltip-wrapper" style="position:absolute;bottom:100%;margin-bottom:16px;z-index:40;">
+                    <button id="ie-top-btn" onclick="toggleIEPanel('ie-top-panel')" style="width:32px;height:32px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:18px;">add</span>
+                    </button>
+                    <span class="ie-tooltip-text">(内部细节解释)</span>
+                  </div>
+                  <!-- Trapezoid Encoder -->
+                  <div id="ie-encoder-detail" style="width:288px;height:192px;background:#353535;display:flex;align-items:center;justify-content:center;clip-path:polygon(0 0, 100% 20%, 100% 80%, 0 100%);position:relative;transition:transform 0.8s cubic-bezier(0.4,0,0.2,1);box-shadow:0 20px 40px rgba(0,0,0,0.05);">
+                    <span id="ie-encoder-text-detail" style="font-size:18px;font-weight:500;color:white;letter-spacing:0.05em;z-index:1;transition:opacity 0.3s;">图像编码器</span>
+                    <div id="ie-progress-container-detail" style="position:absolute;bottom:30%;left:50%;transform:translateX(-50%);width:140px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;opacity:0;transition:opacity 0.3s ease;">
+                      <div id="ie-progress-bar-detail" style="width:0%;height:100%;background:#D97757;transition:width 1.2s linear;"></div>
+                    </div>
+                  </div>
+                  <!-- Bottom Expand Button -->
+                  <div class="ie-tooltip-wrapper" style="position:absolute;top:100%;margin-top:16px;z-index:40;">
+                    <button id="ie-bottom-btn" onclick="toggleIEPanel('ie-bottom-panel')" style="width:32px;height:32px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:18px;">add</span>
+                    </button>
+                    <span class="ie-tooltip-text">(代码复现)</span>
+                  </div>
+                  <!-- Bottom Panel -->
+                  <div id="ie-bottom-panel" class="ie-panel-bottom" style="position:absolute;top:100%;margin-top:64px;background:#F5F5F5;border:1px solid #E5E5E5;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:320px;z-index:50;">
+                    <div style="position:relative;">
+                      <button onclick="copyCode(this)" style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:white;border:1px solid #E5E5E5;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" title="复制代码">
+                        <span class="material-icons-outlined" style="font-size:16px;color:#6B7280;">content_copy</span>
+                      </button>
+                      <pre style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#54433e;overflow-x:auto;margin:0;padding-right:40px;"><code>def forward(self, x):
+    # x shape: [B, 3, 256, 256]
+    features = self.backbone(x)
+    latent = self.proj(features)
+    return latent</code></pre>
+                    </div>
+                  </div>
+                </div>
+                <!-- Flow Connector 2 -->
+                <div style="flex:1;height:2px;position:relative;display:flex;align-items:center;margin:0 16px;z-index:5;">
+                  <div id="ie-conn2-detail" class="ie-connector-line" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;transition:border-color 0.3s ease;">
+                    <div style="position:absolute;right:-2px;top:-6px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #D1D5DB;transition:border-left-color 0.3s ease;"></div>
+                  </div>
+                </div>
+                <!-- Output Tensor (Right) -->
+                <div id="ie-output-tensor" style="position:relative;width:128px;height:128px;flex-shrink:0;z-index:20;opacity:1;transform:translateX(0) scale(1);transition:all 0.8s cubic-bezier(0.4,0,0.2,1);">
+                  <div style="width:100%;height:100%;background:#D97757;border-radius:24px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.2);box-shadow:0 20px 40px rgba(0,0,0,0.05);color:white;font-weight:700;font-size:12px;">[1, 256, 64, 64]</div>
+                  <div style="position:absolute;top:140px;left:0;right:0;text-align:center;font-size:12px;color:#54433e;">[1, 256, 64, 64]</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Zoom Controls for IE Detail -->
+            <div id="ie-zoom-controls" style="position:absolute;bottom:14px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:30;">
+              <div id="ie-zoom-tooltip" style="position:absolute;bottom:100%;right:0;margin-bottom:6px;padding:2px 8px;background:#1f2937;color:white;font-size:10px;border-radius:4px;opacity:0;transition:opacity 300ms;pointer-events:none;">55%</div>
+              <button id="ie-zoom-out-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#6B7280;">remove</span>
+              </button>
+              <button id="ie-zoom-in-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#0052D9;">add</span>
+              </button>
+              <button id="ie-reload-btn" onclick="reloadIEView()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;margin-top:4px;" title="重新加载">
+                <span class="material-icons-outlined" style="font-size:18px;color:#D97757;">refresh</span>
+              </button>
+            </div>
+
+            <!-- Run Button for IE Detail -->
+            <button id="ie-run-btn" onclick="runIEAnimation()" style="position:absolute;bottom:14px;left:14px;z-index:30;padding:10px 20px;background:#8f482f;color:white;border-radius:9999px;font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;cursor:pointer;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.05);transition:background 0.2s;">
+              <span class="material-icons-outlined" style="font-size:18px;">play_arrow</span>
+              运行
+            </button>
+          </div>
+
+          <!-- Memory Attention Detail View (hidden by default) -->
+          <div id="ma-detail-view" style="position:absolute;top:0;left:0;width:100%;height:100%;background:#F9F7F2;display:none;opacity:0;transition:opacity 0.4s ease;z-index:25;overflow:hidden;">
+            <div style="position:absolute;top:10px;left:14px;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;z-index:20;">MODULE 002 · MEMORY ATTENTION</div>
+
+            <!-- Scalable Diagram Container -->
+            <div id="ma-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scale(0.45);transform-origin:center center;transition:transform 300ms cubic-bezier(0.4,0,0.2,1);cursor:grab;">
+              <!-- Main Diagram Container -->
+              <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;position:relative;">
+                <!-- Vertical Input Stack Group -->
+                <div style="display:flex;flex-direction:column;gap:80px;align-items:center;flex-shrink:0;">
+                  <!-- Input A -->
+                  <div id="ma-input-a" style="position:relative;width:160px;height:160px;cursor:pointer;transition:all 0.8s cubic-bezier(0.4,0,0.2,1);z-index:20;">
+                    <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:24px;top:-8px;left:-8px;opacity:0.4;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                    <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:24px;top:-4px;left:-4px;opacity:0.7;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                    <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:24px;top:0;left:0;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.2);box-shadow:0 20px 40px rgba(0,0,0,0.05);color:white;font-weight:700;font-size:12px;">[1, 256, 64, 64]</div>
+                    <div style="position:absolute;top:180px;left:0;right:0;text-align:center;font-size:12px;color:#54433e;">KV Memory</div>
+                  </div>
+                  <!-- Input B -->
+                  <div id="ma-input-b" style="position:relative;width:160px;height:160px;cursor:pointer;transition:all 0.8s cubic-bezier(0.4,0,0.2,1);z-index:20;">
+                    <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.4);border-radius:24px;top:-8px;left:-8px;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                    <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.7);border-radius:24px;top:-4px;left:-4px;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                    <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:24px;top:0;left:0;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.2);box-shadow:0 20px 40px rgba(0,0,0,0.05);color:white;font-weight:700;font-size:12px;text-align:center;line-height:1.4;">Image<br/>Embeddings</div>
+                    <div style="position:absolute;top:180px;left:0;right:0;text-align:center;font-size:12px;color:#54433e;">[1, 256, 64, 64]</div>
+                  </div>
+                </div>
+                <!-- Flow Connector Left -->
+                <div style="flex:1;min-width:60px;height:2px;position:relative;display:flex;align-items:center;margin:0 20px;z-index:5;">
+                  <div id="ma-conn-left" class="ma-connector-line" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;transition:border-color 0.3s ease;">
+                    <div style="position:absolute;right:-2px;top:-6px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #D1D5DB;transition:border-left-color 0.3s ease;"></div>
+                  </div>
+                </div>
+                <!-- Center Attention Module -->
+                <div style="position:relative;display:flex;align-items:center;justify-content:center;z-index:30;flex-shrink:0;">
+                  <!-- Top Panel -->
+                  <div id="ma-top-panel" class="ma-panel-top" style="position:absolute;bottom:100%;margin-bottom:64px;background:#EFEBE1;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:320px;font-size:14px;color:#54433e;z-index:50;">
+                    <h4 style="font-weight:600;margin-bottom:8px;">架构细节</h4>
+                    <p style="margin:0;line-height:1.6;">注意力层根据记忆状态计算特征的相关性。它利用缩放点积注意力来动态加权输入表示。</p>
+                  </div>
+                  <!-- Top Expand Button -->
+                  <div class="ma-tooltip-wrapper" style="position:absolute;bottom:100%;margin-bottom:16px;z-index:40;">
+                    <button id="ma-top-btn" onclick="toggleMAPanel('ma-top-panel')" style="width:40px;height:40px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:20px;">add</span>
+                    </button>
+                    <span class="ma-tooltip-text">(内部细节解释)</span>
+                  </div>
+                  <!-- Attention Block -->
+                  <div id="ma-attention-block" style="width:350px;height:200px;background:#353535;border-radius:24px;display:flex;align-items:center;justify-content:center;position:relative;transition:transform 0.8s cubic-bezier(0.4,0,0.2,1);box-shadow:0 20px 40px rgba(0,0,0,0.05);">
+                    <span id="ma-attention-text" style="font-size:18px;font-weight:500;color:white;letter-spacing:0.05em;z-index:1;transition:opacity 0.3s;">注意力层</span>
+                    <div id="ma-progress-container" style="position:absolute;bottom:30%;left:50%;transform:translateX(-50%);width:180px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;opacity:0;transition:opacity 0.3s ease;">
+                      <div id="ma-progress-bar" style="width:0%;height:100%;background:#D97757;transition:width 1.2s linear;"></div>
+                    </div>
+                  </div>
+                  <!-- Bottom Expand Button -->
+                  <div class="ma-tooltip-wrapper" style="position:absolute;top:100%;margin-top:16px;z-index:40;">
+                    <button id="ma-bottom-btn" onclick="toggleMAPanel('ma-bottom-panel')" style="width:40px;height:40px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:20px;">add</span>
+                    </button>
+                    <span class="ma-tooltip-text">(代码复现)</span>
+                  </div>
+                  <!-- Bottom Panel -->
+                  <div id="ma-bottom-panel" class="ma-panel-bottom" style="position:absolute;top:100%;margin-top:80px;background:#F5F5F5;border:1px solid #E5E5E5;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:320px;z-index:50;">
+                    <div style="position:relative;">
+                      <button onclick="copyCode(this)" style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:white;border:1px solid #E5E5E5;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" title="复制代码">
+                        <span class="material-icons-outlined" style="font-size:16px;color:#6B7280;">content_copy</span>
+                      </button>
+                      <pre style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#54433e;overflow-x:auto;margin:0;padding-right:40px;"><code>def forward(self, query, key, value):
+    # query: [B, C, H, W]
+    # key, value: [B, C, L]
+    attn = self.attn_mechanism(query, key)
+    out = torch.matmul(attn, value)
+    return out</code></pre>
+                    </div>
+                  </div>
+                </div>
+                <!-- Flow Connector Right -->
+                <div style="flex:1;min-width:60px;height:2px;position:relative;display:flex;align-items:center;margin:0 20px;z-index:5;">
+                  <div id="ma-conn-right" class="ma-connector-line" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;transition:border-color 0.3s ease;">
+                    <div style="position:absolute;right:-2px;top:-6px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #D1D5DB;transition:border-left-color 0.3s ease;"></div>
+                  </div>
+                </div>
+                <!-- Output Tensor -->
+                <div id="ma-output-tensor" style="position:relative;width:160px;height:160px;flex-shrink:0;z-index:20;opacity:1;transform:translateX(0) scale(1);transition:all 0.8s cubic-bezier(0.4,0,0.2,1);">
+                  <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.4);border-radius:24px;top:-8px;left:-8px;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                  <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.7);border-radius:24px;top:-4px;left:-4px;box-shadow:0 20px 40px rgba(0,0,0,0.05);"></div>
+                  <div style="width:100%;height:100%;background:#D97757;border-radius:24px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.2);box-shadow:0 20px 40px rgba(0,0,0,0.05);color:white;font-weight:700;font-size:12px;text-align:center;line-height:1.4;">Conditioned<br/>Features</div>
+                  <div style="position:absolute;top:180px;left:0;right:0;text-align:center;font-size:12px;color:#54433e;">[1, 256, 64, 64]</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Zoom Controls for MA Detail -->
+            <div id="ma-zoom-controls" style="position:absolute;bottom:14px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:30;">
+              <div id="ma-zoom-tooltip" style="position:absolute;bottom:100%;right:0;margin-bottom:6px;padding:2px 8px;background:#1f2937;color:white;font-size:10px;border-radius:4px;opacity:0;transition:opacity 300ms;pointer-events:none;">45%</div>
+              <button id="ma-zoom-out-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#6B7280;">remove</span>
+              </button>
+              <button id="ma-zoom-in-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#0052D9;">add</span>
+              </button>
+              <button id="ma-reload-btn" onclick="reloadMAView()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;margin-top:4px;" title="重新加载">
+                <span class="material-icons-outlined" style="font-size:18px;color:#D97757;">refresh</span>
+              </button>
+            </div>
+
+            <!-- Run Button for MA Detail -->
+            <button id="ma-run-btn" onclick="runMAAnimation()" style="position:absolute;bottom:14px;left:14px;z-index:30;padding:10px 20px;background:#8f482f;color:white;border-radius:9999px;font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;cursor:pointer;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.05);transition:background 0.2s;">
+              <span class="material-icons-outlined" style="font-size:18px;">play_arrow</span>
+              运行
+            </button>
+          </div>
+
+          <!-- Mask Decoder Detail View (hidden by default) -->
+          <div id="md-detail-view" style="position:absolute;top:0;left:0;width:100%;height:100%;background:#F9F7F2;display:none;opacity:0;transition:opacity 0.4s ease;z-index:25;overflow:hidden;">
+            <div style="position:absolute;top:10px;left:14px;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;z-index:20;">MODULE 003 · MASK DECODER</div>
+
+            <!-- Scalable Diagram Container -->
+            <div id="md-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scale(0.55);transform-origin:center center;transition:transform 300ms cubic-bezier(0.4,0,0.2,1);cursor:grab;">
+              <!-- Main Diagram Container -->
+              <div style="display:flex;align-items:center;justify-content:center;width:100%;min-height:1024px;position:relative;">
+                <!-- Vertical Input Stack Group -->
+                <div style="display:flex;flex-direction:column;gap:128px;align-items:center;width:250px;flex-shrink:0;">
+                  <!-- Upper Input -->
+                  <div id="md-input-a" style="position:relative;width:200px;height:200px;flex-shrink:0;cursor:pointer;transition:all 0.7s cubic-bezier(0.4,0,0.2,1);z-index:20;">
+                    <div style="position:absolute;inset:0;background:rgba(217,119,87,0.4);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(8px,-8px);"></div>
+                    <div style="position:absolute;inset:0;background:rgba(217,119,87,0.7);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(4px,-4px);"></div>
+                    <div style="position:absolute;inset:0;background:#D97757;border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;z-index:10;"></div>
+                    <div style="position:absolute;top:calc(100% + 16px);left:0;right:0;text-align:center;">
+                      <span style="font-family:Inter;font-size:12px;color:#54433e;white-space:nowrap;">[1, 256, 64, 64]</span>
+                    </div>
+                  </div>
+                  <!-- Lower Input -->
+                  <div style="display:flex;align-items:center;gap:16px;width:250px;position:relative;flex-shrink:0;">
+                    <span id="md-user-click-text" style="font-family:Inter;font-size:14px;font-weight:500;color:#54433e;white-space:nowrap;">User Click [x, y]</span>
+                    <!-- Short Connector -->
+                    <svg style="position:absolute;width:40px;height:10px;left:110px;top:50%;transform:translateY(-50%);">
+                      <line id="md-click-connector" class="md-connector-path" x1="0" x2="35" y1="5" y2="5"></line>
+                      <polygon id="md-click-arrow" class="md-connector-arrow" points="35,2 40,5 35,8"></polygon>
+                    </svg>
+                    <div id="md-input-b" style="width:100px;height:60px;background:#353535;border-radius:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 20px 40px rgba(0,0,0,0.05);color:white;font-family:Inter;font-size:12px;text-align:center;margin-left:auto;transition:all 0.8s cubic-bezier(0.4,0,0.2,1);flex-shrink:0;z-index:20;">
+                      <span style="padding:0 8px;">Prompt<br/>Encoder</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Curved Connectors Left -->
+                <div style="width:128px;height:400px;position:relative;margin:0 16px;z-index:0;">
+                  <svg style="width:100%;height:100%;position:absolute;top:0;left:0;overflow:visible;">
+                    <!-- Top Curve -->
+                    <path id="md-left-conn-top" class="md-curve-path" d="M 0,80 C 60,80 60,200 128,200"></path>
+                    <polygon id="md-left-arrow-top" class="md-curve-arrow" points="123,197 128,200 123,203"></polygon>
+                    <!-- Bottom Curve -->
+                    <path id="md-left-conn-bottom" class="md-curve-path" d="M 0,340 C 60,340 60,200 128,200"></path>
+                  </svg>
+                </div>
+                <!-- Center Mask Decoder Module -->
+                <div style="position:relative;display:flex;align-items:center;justify-content:center;z-index:30;flex-shrink:0;">
+                  <!-- Top Panel -->
+                  <div id="md-top-panel" class="md-panel-top" style="background:#EFEBE1;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:320px;font-size:14px;color:#54433e;">
+                    <h4 style="font-weight:600;margin-bottom:8px;">架构细节</h4>
+                    <p style="margin:0;line-height:1.6;">掩码解码器将图像嵌入和一组提示嵌入高效映射为输出掩码。</p>
+                  </div>
+                  <!-- Top Expand Button -->
+                  <div class="md-tooltip-wrapper" style="position:absolute;bottom:100%;margin-bottom:16px;z-index:40;">
+                    <button id="md-top-btn" onclick="toggleMDPanel('md-top-panel')" style="width:40px;height:40px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:20px;">add</span>
+                    </button>
+                    <span class="md-tooltip-text">(内部细节解释)</span>
+                  </div>
+                  <!-- Mask Decoder Block -->
+                  <div id="md-decoder-block" style="width:400px;height:220px;background:#353535;border-radius:20px;display:flex;align-items:center;justify-content:center;position:relative;transition:transform 0.7s cubic-bezier(0.4,0,0.2,1);box-shadow:0 20px 40px rgba(0,0,0,0.05);">
+                    <span id="md-decoder-text" style="font-family:Inter;font-size:16px;font-weight:500;color:white;letter-spacing:0.05em;z-index:1;transition:opacity 0.3s;">Mask Decoder</span>
+                    <div id="md-progress-container" style="position:absolute;bottom:30%;left:50%;transform:translateX(-50%);width:180px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;opacity:0;transition:opacity 0.3s ease;">
+                      <div id="md-progress-bar" style="width:0%;height:100%;background:#D97757;transition:width 1.2s linear;"></div>
+                    </div>
+                  </div>
+                  <!-- Bottom Expand Button -->
+                  <div class="md-tooltip-wrapper" style="position:absolute;top:100%;margin-top:16px;z-index:40;">
+                    <button id="md-bottom-btn" onclick="toggleMDPanel('md-bottom-panel')" style="width:40px;height:40px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:20px;">add</span>
+                    </button>
+                    <span class="md-tooltip-text">(代码复现)</span>
+                  </div>
+                  <!-- Bottom Panel -->
+                  <div id="md-bottom-panel" class="md-panel-bottom" style="background:#F5F5F5;border:1px solid #E5E5E5;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:320px;">
+                    <div style="position:relative;">
+                      <button onclick="copyCode(this)" style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:white;border:1px solid #E5E5E5;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" title="复制代码">
+                        <span class="material-icons-outlined" style="font-size:16px;color:#6B7280;">content_copy</span>
+                      </button>
+                      <pre style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#54433e;overflow-x:auto;margin:0;padding-right:40px;"><code>def forward(self, image_embeddings, prompt_embeddings):
+    # Cross-attention decoding
+    mask = self.decoder(image_embeddings, prompt_embeddings)
+    return mask</code></pre>
+                    </div>
+                  </div>
+                </div>
+                <!-- Flow Connector Right -->
+                <div style="width:128px;height:400px;position:relative;margin:0 16px;z-index:0;display:flex;align-items:center;">
+                  <svg style="width:100%;height:100%;position:absolute;top:0;left:0;overflow:visible;">
+                    <line id="md-right-conn" class="md-curve-path" x1="0" x2="120" y1="200" y2="200"></line>
+                    <polygon id="md-right-arrow" class="md-curve-arrow" points="120,197 125,200 120,203"></polygon>
+                  </svg>
+                </div>
+                <!-- Output Tensor -->
+                <div id="md-output-tensor" style="position:relative;width:250px;height:250px;flex-shrink:0;z-index:20;opacity:1;transform:translateX(0) scale(1);transition:all 0.8s cubic-bezier(0.4,0,0.2,1);">
+                  <div style="position:absolute;inset:0;background:rgba(217,119,87,0.4);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(12px,-12px);transition:all 0.7s cubic-bezier(0.4,0,0.2,1);"></div>
+                  <div style="position:absolute;inset:0;background:rgba(217,119,87,0.7);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(6px,-6px);transition:all 0.7s cubic-bezier(0.4,0,0.2,1);"></div>
+                  <div style="width:100%;height:100%;background:#D97757;border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;transition:all 0.7s cubic-bezier(0.4,0,0.2,1);position:relative;z-index:10;"></div>
+                  <div style="position:absolute;top:calc(100% + 16px);left:0;right:0;text-align:center;">
+                    <span style="font-family:Inter;font-size:12px;color:#54433e;white-space:nowrap;">[1, 3, 256, 256]</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Zoom Controls for MD Detail -->
+            <div id="md-zoom-controls" style="position:absolute;bottom:14px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:30;">
+              <div id="md-zoom-tooltip" style="position:absolute;bottom:100%;right:0;margin-bottom:6px;padding:2px 8px;background:#1f2937;color:white;font-size:10px;border-radius:4px;opacity:0;transition:opacity 300ms;pointer-events:none;">55%</div>
+              <button id="md-zoom-out-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#6B7280;">remove</span>
+              </button>
+              <button id="md-zoom-in-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#0052D9;">add</span>
+              </button>
+              <button id="md-reload-btn" onclick="reloadMDView()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;margin-top:4px;" title="重新加载">
+                <span class="material-icons-outlined" style="font-size:18px;color:#D97757;">refresh</span>
+              </button>
+            </div>
+
+            <!-- Run Button for MD Detail -->
+            <button id="md-run-btn" onclick="runMDAnimation()" style="position:absolute;bottom:14px;left:14px;z-index:30;padding:12px 24px;background:#8f482f;color:white;border-radius:9999px;font-family:Inter;font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;cursor:pointer;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.05);transition:background 0.2s;">
+              <span class="material-icons-outlined" style="font-size:18px;font-variation-settings:'FILL' 1;">play_arrow</span>
+              运行
+            </button>
+          </div>
+
+          <!-- Memory Encoder Detail View (hidden by default) -->
+          <div id="me-detail-view" style="position:absolute;top:0;left:0;width:100%;height:100%;background:#F9F7F2;display:none;opacity:0;transition:opacity 0.4s ease;z-index:25;overflow:hidden;">
+            <div style="position:absolute;top:10px;left:14px;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;z-index:20;">MODULE 004 · MEMORY ENCODER</div>
+
+            <!-- Scalable Diagram Container -->
+            <div id="me-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;transform:scale(0.55);transform-origin:center center;transition:transform 300ms cubic-bezier(0.4,0,0.2,1);cursor:grab;">
+              <!-- Main Diagram Container -->
+              <div style="display:flex;align-items:center;justify-content:center;width:100%;min-height:1024px;position:relative;">
+                <!-- Input Group (Left) - Dual Input Stacks -->
+                <div style="display:flex;flex-direction:column;gap:64px;align-items:center;width:200px;flex-shrink:0;z-index:20;">
+                  <!-- Upper Input Stack -->
+                  <div id="me-input-a" style="position:relative;width:200px;height:200px;cursor:pointer;transition:all 0.7s cubic-bezier(0.4,0,0.2,1);">
+                    <div style="position:absolute;inset:0;background:rgba(217,119,87,0.4);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(6px,-6px);"></div>
+                    <div style="position:absolute;inset:0;background:rgba(217,119,87,0.7);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(3px,-3px);"></div>
+                    <div style="position:absolute;inset:0;background:#D97757;border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;z-index:10;"></div>
+                    <div style="position:absolute;top:calc(100% + 16px);left:0;right:0;text-align:center;">
+                      <span style="font-family:Inter;font-size:12px;color:#54433e;white-space:nowrap;">[1, 256, 64]</span>
+                    </div>
+                  </div>
+                  <!-- Lower Input Stack -->
+                  <div id="me-input-b" style="position:relative;width:200px;height:200px;cursor:pointer;transition:all 0.7s cubic-bezier(0.4,0,0.2,1);">
+                    <div style="position:absolute;inset:0;background:rgba(217,119,87,0.4);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(6px,-6px);"></div>
+                    <div style="position:absolute;inset:0;background:rgba(217,119,87,0.7);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(3px,-3px);"></div>
+                    <div style="position:absolute;inset:0;background:#D97757;border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;z-index:10;"></div>
+                    <div style="position:absolute;top:calc(100% + 16px);left:0;right:0;text-align:center;">
+                      <span style="font-family:Inter;font-size:12px;color:#54433e;white-space:nowrap;">[1, 256, 64, 64]</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Left Connectors -->
+                <div style="display:flex;flex-direction:column;height:400px;justify-between;margin:0 32px;flex-grow:1;z-index:5;">
+                  <!-- Flow Connector 1 -->
+                  <div style="flex-grow:1;height:2px;position:relative;display:flex;align-items:center;">
+                    <div id="me-conn1" class="me-connector-line" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;transition:border-color 0.3s ease;"></div>
+                  </div>
+                  <!-- Flow Connector 2 -->
+                  <div style="flex-grow:1;height:2px;position:relative;display:flex;align-items:center;">
+                    <div id="me-conn2" class="me-connector-line" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;transition:border-color 0.3s ease;"></div>
+                  </div>
+                </div>
+                <!-- Center Trapezoid & Absolute Panels -->
+                <div style="position:relative;display:flex;align-items:center;justify-content:center;z-index:30;flex-shrink:0;height:600px;">
+                  <!-- Top Panel -->
+                  <div id="me-top-panel" class="me-panel-top" style="background:#EFEBE1;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:384px;font-size:14px;color:#54433e;">
+                    <h4 style="font-weight:600;margin-bottom:8px;">架构细节</h4>
+                    <p style="margin:0;line-height:1.6;">记忆编码将空间和潜在输入压缩为结构化的存储表示。</p>
+                  </div>
+                  <!-- Top Expand Button -->
+                  <div class="me-tooltip-wrapper" style="position:absolute;top:20px;z-index:40;">
+                    <button id="me-top-btn" onclick="toggleMEPanel('me-top-panel')" style="width:40px;height:40px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:20px;">add</span>
+                    </button>
+                    <span class="me-tooltip-text">(内部细节解释)</span>
+                  </div>
+                  <!-- Trapezoid Encoder -->
+                  <div id="me-encoder-block" style="width:450px;height:300px;background:#353535;clip-path:polygon(0 0, 100% 25%, 100% 75%, 0 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 20px 40px rgba(0,0,0,0.05);position:relative;transition:transform 0.7s cubic-bezier(0.4,0,0.2,1);flex-shrink:0;">
+                    <span id="me-encoder-text" style="font-family:Inter;font-size:24px;font-weight:500;color:white;letter-spacing:0.05em;z-index:1;transition:opacity 0.3s;">记忆编码</span>
+                    <div id="me-progress-container" style="position:absolute;bottom:30%;left:50%;transform:translateX(-50%);width:140px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;opacity:0;transition:opacity 0.3s ease;">
+                      <div id="me-progress-bar" style="width:0%;height:100%;background:#D97757;transition:width 1.2s linear;"></div>
+                    </div>
+                  </div>
+                  <!-- Bottom Expand Button -->
+                  <div class="me-tooltip-wrapper" style="position:absolute;bottom:20px;z-index:40;">
+                    <button id="me-bottom-btn" onclick="toggleMEPanel('me-bottom-panel')" style="width:40px;height:40px;background:white;border-radius:50%;box-shadow:0 20px 40px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;color:#54433e;cursor:pointer;border:none;transition:color 0.2s;">
+                      <span class="material-icons-outlined" style="font-size:20px;">add</span>
+                    </button>
+                    <span class="me-tooltip-text">(代码复现)</span>
+                  </div>
+                  <!-- Bottom Panel -->
+                  <div id="me-bottom-panel" class="me-panel-bottom" style="background:#F5F5F5;border:1px solid #E5E5E5;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.05);width:384px;">
+                    <div style="position:relative;">
+                      <button onclick="copyCode(this)" style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:white;border:1px solid #E5E5E5;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" title="复制代码">
+                        <span class="material-icons-outlined" style="font-size:16px;color:#6B7280;">content_copy</span>
+                      </button>
+                      <pre style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#54433e;overflow-x:auto;margin:0;padding-right:40px;"><code>def encode_memory(x, y):
+    # x: [B, 256, 64]
+    # y: [B, 256, 64, 64]
+    return memory_bank(x, y)</code></pre>
+                    </div>
+                  </div>
+                </div>
+                <!-- Flow Connector 3 -->
+                <div style="flex-grow:1;height:2px;position:relative;display:flex;align-items:center;margin:0 32px;z-index:5;">
+                  <div id="me-conn3" class="me-connector-line" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;transition:border-color 0.3s ease;"></div>
+                </div>
+                <!-- Output Stack (Right) -->
+                <div id="me-output-tensor" style="position:relative;width:200px;height:200px;flex-shrink:0;z-index:20;opacity:1;transform:translateX(0) scale(1);transition:all 0.8s cubic-bezier(0.4,0,0.2,1);">
+                  <div style="position:absolute;inset:0;background:rgba(217,119,87,0.4);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(6px,-6px);transition:all 0.7s cubic-bezier(0.4,0,0.2,1);"></div>
+                  <div style="position:absolute;inset:0;background:rgba(217,119,87,0.7);border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);transform:translate(3px,-3px);transition:all 0.7s cubic-bezier(0.4,0,0.2,1);"></div>
+                  <div style="position:absolute;inset:0;background:#D97757;border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.05);border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;z-index:10;transition:all 0.7s cubic-bezier(0.4,0,0.2,1);"></div>
+                  <div style="position:absolute;top:calc(100% + 16px);left:0;right:0;text-align:center;">
+                    <span style="font-family:Inter;font-size:12px;color:#54433e;white-space:nowrap;">记忆库</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Zoom Controls for ME Detail -->
+            <div id="me-zoom-controls" style="position:absolute;bottom:14px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:30;">
+              <div id="me-zoom-tooltip" style="position:absolute;bottom:100%;right:0;margin-bottom:6px;padding:2px 8px;background:#1f2937;color:white;font-size:10px;border-radius:4px;opacity:0;transition:opacity 300ms;pointer-events:none;">55%</div>
+              <button id="me-zoom-out-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#6B7280;">remove</span>
+              </button>
+              <button id="me-zoom-in-btn" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;">
+                <span class="material-icons-outlined" style="font-size:18px;color:#0052D9;">add</span>
+              </button>
+              <button id="me-reload-btn" onclick="reloadMEView()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.8);backdrop-filter:blur(4px);border:1px solid #e5e6eb;box-shadow:0 1px 2px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s;margin-top:4px;" title="重新加载">
+                <span class="material-icons-outlined" style="font-size:18px;color:#D97757;">refresh</span>
+              </button>
+            </div>
+
+            <!-- Run Button for ME Detail -->
+            <button id="me-run-btn" onclick="runMEAnimation()" style="position:absolute;bottom:14px;left:14px;z-index:30;padding:12px 24px;background:#8f482f;color:white;border-radius:9999px;font-family:Inter;font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;cursor:pointer;border:none;box-shadow:0 20px 40px rgba(0,0,0,0.05);transition:background 0.2s;">
+              <span class="material-icons-outlined" style="font-size:18px;font-variation-settings:'FILL' 1;">play_arrow</span>
+              运行
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /sidebar content -->
+
+    <!-- ==================== DETAIL PANEL (inside sidebar) ==================== -->
+    <div id="detail-panel">
+      <div class="detail-header">
+        <span class="detail-title" id="detail-title">MODULE DETAIL</span>
+        <button class="detail-close" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="detail-body" id="detail-body">
+        <!-- Detail content injected here -->
+      </div>
+      <button class="back-btn" onclick="closeDetail()">
+        <span class="material-icons-outlined" style="font-size:12px;">arrow_back</span>
+        返回
+      </button>
+      <button class="detail-run-btn" id="detail-run-btn" onclick="runDetailAnimation()">
+        <span class="material-icons-outlined" style="font-size:14px;">play_arrow</span>
+        Run
+      </button>
+      <div class="detail-zoom-controls">
+        <button class="zoom-btn" onclick="detailZoomIn()">+</button>
+        <button class="zoom-btn" onclick="detailZoomOut()">−</button>
+      </div>
+    </div>
+
+  </aside><!-- /AI sidebar -->
+
+</main><!-- /main -->
+
+<!-- ==================== BOTTOM STATUS BAR ==================== -->
+<footer class="bg-white border-t border-gray-200 flex items-center justify-between px-4 py-1 text-xs text-gray-500 shrink-0">
+  <div class="flex items-center space-x-3">
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">view_list</span>
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">first_page</span>
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">chevron_left</span>
+    <div class="flex items-center border border-gray-300 rounded px-2 py-0.5 bg-gray-50">
+      <input class="w-10 text-center bg-transparent border-none p-0 text-xs focus:ring-0" type="text" value="5/41"/>
+    </div>
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">chevron_right</span>
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">last_page</span>
+  </div>
+  <div class="flex items-center space-x-4">
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">crop_free</span>
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">auto_awesome_mosaic</span>
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">splitscreen</span>
+    <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">play_circle_outline</span>
+    <div class="flex items-center space-x-2 ml-4">
+      <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">remove_circle_outline</span>
+      <span class="w-16 h-1 bg-gray-300 rounded-full relative cursor-pointer">
+        <span class="absolute left-1/2 top-1/2 -translate-y-1/2 w-2 h-2 bg-tencent-blue rounded-full"></span>
+      </span>
+      <span class="material-icons-outlined text-sm cursor-pointer hover:text-black">add_circle_outline</span>
+      <span>110%</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ============================================================
+//  Navigation
+// ============================================================
+function switchSubTab(tab) {
+  ['overview','detail','mindmap','core'].forEach(t => {
+    document.getElementById('subtab-'+t).classList.remove('tab-active');
+    document.getElementById('content-'+t).classList.add('hidden');
+  });
+  document.getElementById('subtab-'+tab).classList.add('tab-active');
+  document.getElementById('content-'+tab).classList.remove('hidden');
+
+  // 不再隐藏论文区域，左侧论文保持不变
+  // 只在流程解构tab时触发高亮动画
+  if (tab === 'core') {
+    // 触发侧边栏内架构图的高亮动画
+    highlightSidebarModulesSequentially();
+  }
+}
+
+// 侧边栏架构图模块高亮动画
+function highlightSidebarModulesSequentially() {
+  // 简单的高亮效果 - 侧边栏内的架构图
+  const archCanvas = document.getElementById('arch-canvas');
+  if (archCanvas) {
+    archCanvas.style.transition = 'transform 500ms ease';
+    archCanvas.style.transform = 'scale(0.65)';
+    setTimeout(() => {
+      archCanvas.style.transform = 'scale(0.6)';
+    }, 500);
+  }
+}
+
+// Click 流程解构 tab in main tabs → go to architecture view
+document.getElementById('tab-summary').addEventListener('click', () => {
+  // Already on summary tab
+});
+document.getElementById('tab-session').addEventListener('click', () => {
+  // Session tab - not implemented here
+});
+
+// ============================================================
+//  Sidebar Architecture Canvas Pan & Zoom
+// ============================================================
+(function() {
+  const viewport = document.getElementById('arch-viewport');
+  const canvas = document.getElementById('arch-canvas');
+  const zoomInBtn = document.getElementById('zoom-in-btn-sidebar');
+  const zoomOutBtn = document.getElementById('zoom-out-btn-sidebar');
+  const tooltip = document.getElementById('zoom-tooltip');
+
+  if (!viewport || !canvas) return;
+
+  let archScale = 0.6;
+  let archTranslateX = 0;
+  let archTranslateY = 0;
+  let archIsDragging = false;
+  let archStartX = 0, archStartY = 0;
+  let archTooltipTimeout;
+
+  function archUpdateTransform() {
+    canvas.style.transform = `scale(${archScale}) translate(${archTranslateX}px, ${archTranslateY}px)`;
+    archShowTooltip();
+  }
+
+  function archShowTooltip() {
+    if (!tooltip) return;
+    tooltip.innerText = Math.round(archScale * 100) + '%';
+    tooltip.style.opacity = '1';
+    clearTimeout(archTooltipTimeout);
+    archTooltipTimeout = setTimeout(() => {
+      tooltip.style.opacity = '0';
+    }, 1000);
+  }
+
+  if (zoomInBtn) {
+    zoomInBtn.onclick = () => {
+      archScale = Math.min(2.5, archScale + 0.15);
+      archUpdateTransform();
+    };
+  }
+  if (zoomOutBtn) {
+    zoomOutBtn.onclick = () => {
+      archScale = Math.max(0.2, archScale - 0.15);
+      archUpdateTransform();
+    };
+  }
+
+  viewport.onwheel = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    archScale = Math.min(2.5, Math.max(0.2, archScale + delta));
+    canvas.style.transition = 'transform 150ms ease-out';
+    archUpdateTransform();
+  };
+
+  viewport.onmousedown = (e) => {
+    if (archScale > 0.4) {
+      archIsDragging = true;
+      archStartX = e.clientX - archTranslateX;
+      archStartY = e.clientY - archTranslateY;
+      canvas.style.cursor = 'grabbing';
+    }
+  };
+  window.addEventListener('mousemove', (e) => {
+    if (!archIsDragging) return;
+    archTranslateX = e.clientX - archStartX;
+    archTranslateY = e.clientY - archStartY;
+    canvas.style.transition = 'none';
+    archUpdateTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    archIsDragging = false;
+    canvas.style.transition = 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)';
+    canvas.style.cursor = 'grab';
+  });
+
+  viewport.ondblclick = () => {
+    archScale = 0.6;
+    archTranslateX = 0;
+    archTranslateY = 0;
+    canvas.style.transition = 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)';
+    archUpdateTransform();
+  };
+})();
+
+// ============================================================
+//  Image Encoder Detail View Zoom Controls
+// ============================================================
+(function() {
+  const ieDetailView = document.getElementById('ie-detail-view');
+  const ieCanvas = document.getElementById('ie-canvas');
+  const ieZoomInBtn = document.getElementById('ie-zoom-in-btn');
+  const ieZoomOutBtn = document.getElementById('ie-zoom-out-btn');
+  const ieTooltip = document.getElementById('ie-zoom-tooltip');
+
+  if (!ieCanvas) return;
+
+  let ieScale = 0.55;
+  let ieTranslateX = 0;
+  let ieTranslateY = 0;
+  let ieIsDragging = false;
+  let ieStartX = 0, ieStartY = 0;
+  let ieTooltipTimeout;
+
+  function ieUpdateTransform() {
+    ieCanvas.style.transform = `scale(${ieScale}) translate(${ieTranslateX}px, ${ieTranslateY}px)`;
+    ieShowTooltip();
+  }
+
+  function ieShowTooltip() {
+    if (!ieTooltip) return;
+    ieTooltip.innerText = Math.round(ieScale * 100) + '%';
+    ieTooltip.style.opacity = '1';
+    clearTimeout(ieTooltipTimeout);
+    ieTooltipTimeout = setTimeout(() => {
+      ieTooltip.style.opacity = '0';
+    }, 1000);
+  }
+
+  if (ieZoomInBtn) {
+    ieZoomInBtn.onclick = () => {
+      ieScale = Math.min(2.5, ieScale + 0.15);
+      ieCanvas.style.transition = 'transform 200ms ease-out';
+      ieUpdateTransform();
+    };
+  }
+  if (ieZoomOutBtn) {
+    ieZoomOutBtn.onclick = () => {
+      ieScale = Math.max(0.2, ieScale - 0.15);
+      ieCanvas.style.transition = 'transform 200ms ease-out';
+      ieUpdateTransform();
+    };
+  }
+
+  // 鼠标滚轮缩放
+  if (ieDetailView) {
+    ieDetailView.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      ieScale = Math.min(2.5, Math.max(0.2, ieScale + delta));
+      ieCanvas.style.transition = 'transform 150ms ease-out';
+      ieUpdateTransform();
+    }, { passive: false });
+
+    // 鼠标拖拽
+    ieDetailView.addEventListener('mousedown', (e) => {
+      // 忽略按钮点击
+      if (e.target.closest('button') || e.target.closest('#ie-run-btn')) return;
+      if (ieScale > 0.4) {
+        ieIsDragging = true;
+        ieStartX = e.clientX - ieTranslateX;
+        ieStartY = e.clientY - ieTranslateY;
+        ieCanvas.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!ieIsDragging) return;
+      ieTranslateX = e.clientX - ieStartX;
+      ieTranslateY = e.clientY - ieStartY;
+      ieCanvas.style.transition = 'none';
+      ieUpdateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (ieIsDragging) {
+        ieIsDragging = false;
+        ieCanvas.style.cursor = 'grab';
+      }
+    });
+
+    // 双击重置
+    ieDetailView.addEventListener('dblclick', () => {
+      ieScale = 0.55;
+      ieTranslateX = 0;
+      ieTranslateY = 0;
+      ieCanvas.style.transition = 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)';
+      ieUpdateTransform();
+    });
+  }
+})();
+
+// ============================================================
+//  Reload IE Detail View
+// ============================================================
+function reloadIEView() {
+  const ieCanvas = document.getElementById('ie-canvas');
+  const ieReloadBtn = document.getElementById('ie-reload-btn');
+
+  if (!ieCanvas || !ieReloadBtn) return;
+
+  ieReloadBtn.disabled = true;
+  ieReloadBtn.style.opacity = '0.5';
+
+  const icon = ieReloadBtn.querySelector('.material-icons-outlined');
+  if (icon) {
+    icon.style.transition = 'transform 0.5s ease';
+    icon.style.transform = 'rotate(360deg)';
+  }
+
+  ieCanvas.style.transition = 'opacity 0.25s ease-out, transform 0.25s ease-out';
+  ieCanvas.style.opacity = '0';
+  ieCanvas.style.transform = 'scale(0.55) scale(0.95)';
+
+  setTimeout(() => {
+    if (icon) {
+      icon.style.transition = 'none';
+      icon.style.transform = 'rotate(0deg)';
+    }
+
+    ieCanvas.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-in';
+    ieCanvas.style.opacity = '1';
+    ieCanvas.style.transform = 'scale(0.55)';
+
+    setTimeout(() => {
+      ieReloadBtn.disabled = false;
+      ieReloadBtn.style.opacity = '1';
+    }, 250);
+  }, 500);
+}
+
+// ============================================================
+//  Memory Attention Detail View Zoom Controls
+// ============================================================
+(function() {
+  const maDetailView = document.getElementById('ma-detail-view');
+  const maCanvas = document.getElementById('ma-canvas');
+  const maZoomInBtn = document.getElementById('ma-zoom-in-btn');
+  const maZoomOutBtn = document.getElementById('ma-zoom-out-btn');
+  const maTooltip = document.getElementById('ma-zoom-tooltip');
+
+  if (!maCanvas) return;
+
+  let maScale = 0.45;
+  let maTranslateX = 0;
+  let maTranslateY = 0;
+  let maIsDragging = false;
+  let maStartX = 0, maStartY = 0;
+  let maTooltipTimeout;
+
+  function maUpdateTransform() {
+    maCanvas.style.transform = `scale(${maScale}) translate(${maTranslateX}px, ${maTranslateY}px)`;
+    maShowTooltip();
+  }
+
+  function maShowTooltip() {
+    if (!maTooltip) return;
+    maTooltip.innerText = Math.round(maScale * 100) + '%';
+    maTooltip.style.opacity = '1';
+    clearTimeout(maTooltipTimeout);
+    maTooltipTimeout = setTimeout(() => {
+      maTooltip.style.opacity = '0';
+    }, 1000);
+  }
+
+  if (maZoomInBtn) {
+    maZoomInBtn.onclick = () => {
+      maScale = Math.min(2.5, maScale + 0.15);
+      maCanvas.style.transition = 'transform 200ms ease-out';
+      maUpdateTransform();
+    };
+  }
+  if (maZoomOutBtn) {
+    maZoomOutBtn.onclick = () => {
+      maScale = Math.max(0.2, maScale - 0.15);
+      maCanvas.style.transition = 'transform 200ms ease-out';
+      maUpdateTransform();
+    };
+  }
+
+  // 鼠标滚轮缩放
+  if (maDetailView) {
+    maDetailView.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      maScale = Math.min(2.5, Math.max(0.2, maScale + delta));
+      maCanvas.style.transition = 'transform 150ms ease-out';
+      maUpdateTransform();
+    }, { passive: false });
+
+    // 鼠标拖拽
+    maDetailView.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button') || e.target.closest('#ma-run-btn')) return;
+      if (maScale > 0.4) {
+        maIsDragging = true;
+        maStartX = e.clientX - maTranslateX;
+        maStartY = e.clientY - maTranslateY;
+        maCanvas.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!maIsDragging) return;
+      maTranslateX = e.clientX - maStartX;
+      maTranslateY = e.clientY - maStartY;
+      maCanvas.style.transition = 'none';
+      maUpdateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (maIsDragging) {
+        maIsDragging = false;
+        maCanvas.style.cursor = 'grab';
+      }
+    });
+
+    // 双击重置
+    maDetailView.addEventListener('dblclick', () => {
+      maScale = 0.45;
+      maTranslateX = 0;
+      maTranslateY = 0;
+      maCanvas.style.transition = 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)';
+      maUpdateTransform();
+    });
+  }
+})();
+
+// ============================================================
+//  Reload MA Detail View
+// ============================================================
+function reloadMAView() {
+  const maCanvas = document.getElementById('ma-canvas');
+  const maReloadBtn = document.getElementById('ma-reload-btn');
+
+  if (!maCanvas || !maReloadBtn) return;
+
+  maReloadBtn.disabled = true;
+  maReloadBtn.style.opacity = '0.5';
+
+  const icon = maReloadBtn.querySelector('.material-icons-outlined');
+  if (icon) {
+    icon.style.transition = 'transform 0.5s ease';
+    icon.style.transform = 'rotate(360deg)';
+  }
+
+  maCanvas.style.transition = 'opacity 0.25s ease-out, transform 0.25s ease-out';
+  maCanvas.style.opacity = '0';
+  maCanvas.style.transform = 'scale(0.45) scale(0.95)';
+
+  setTimeout(() => {
+    if (icon) {
+      icon.style.transition = 'none';
+      icon.style.transform = 'rotate(0deg)';
+    }
+
+    maCanvas.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-in';
+    maCanvas.style.opacity = '1';
+    maCanvas.style.transform = 'scale(0.45)';
+
+    setTimeout(() => {
+      maReloadBtn.disabled = false;
+      maReloadBtn.style.opacity = '1';
+    }, 250);
+  }, 500);
+}
+
+// ============================================================
+//  Memory Attention Detail View Switching
+// ============================================================
+function toggleMAPanel(panelId) {
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.toggle('open');
+
+    const isOpen = panel.classList.contains('open');
+    let btnId = null;
+    if (panelId === 'ma-top-panel') {
+      btnId = 'ma-top-btn';
+    } else if (panelId === 'ma-bottom-panel') {
+      btnId = 'ma-bottom-btn';
+    }
+
+    if (btnId) {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        const icon = btn.querySelector('.material-icons-outlined');
+        if (icon) {
+          icon.textContent = isOpen ? 'remove' : 'add';
+        }
+      }
+    }
+  }
+}
+
+function showMADetail() {
+  const archCanvas = document.getElementById('arch-canvas');
+  const maDetailView = document.getElementById('ma-detail-view');
+  const maCanvas = document.getElementById('ma-canvas');
+  const backBtn = document.getElementById('back-to-overview-btn');
+  const zoomControls = document.getElementById('zoom-controls-overview');
+
+  if (!archCanvas || !maDetailView) return;
+
+  // 标记进入详细页
+  isInDetailView = true;
+
+  // 高亮左侧文字段落
+  highlightText('text-memory-attention');
+
+  // 隐藏总览视图
+  archCanvas.style.opacity = '0';
+  archCanvas.style.pointerEvents = 'none';
+
+  // 隐藏缩放控件
+  if (zoomControls) zoomControls.style.display = 'none';
+
+  // 显示返回按钮
+  if (backBtn) backBtn.style.display = 'flex';
+
+  // 重置 MA 画布缩放和偏移
+  if (maCanvas) {
+    maCanvas.style.transition = 'none';
+    maCanvas.style.transform = 'scale(0.45) translate(0px, 0px)';
+    maCanvas.style.opacity = '1';
+    maCanvas.style.cursor = 'grab';
+  }
+
+  // 显示 Memory Attention 详细视图
+  maDetailView.style.display = 'block';
+  setTimeout(() => {
+    maDetailView.style.opacity = '1';
+  }, 50);
+}
+
+// ============================================================
+//  Memory Attention Detail Animation
+// ============================================================
+async function runMAAnimation() {
+  const btn = document.getElementById('ma-run-btn');
+  if (btn && btn.disabled) return;
+
+  const inputA = document.getElementById('ma-input-a');
+  const inputB = document.getElementById('ma-input-b');
+  const attentionBlock = document.getElementById('ma-attention-block');
+  const attentionText = document.getElementById('ma-attention-text');
+  const output = document.getElementById('ma-output-tensor');
+  const progressContainer = document.getElementById('ma-progress-container');
+  const progressBar = document.getElementById('ma-progress-bar');
+  const connLeft = document.getElementById('ma-conn-left');
+  const connRight = document.getElementById('ma-conn-right');
+
+  if (!inputA || !inputB || !attentionBlock || !output) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+  }
+
+  // Step 0: Reset output
+  output.style.transition = 'none';
+  output.style.opacity = '0';
+  output.style.transform = 'translateX(-150px) scale(0.2)';
+
+  // Step 1: Intermission
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Step 2: Activate left connector
+  if (connLeft) connLeft.classList.add('active-flow');
+
+  // Step 3: Dual ingestion
+  inputA.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  inputA.style.transform = 'translateX(250px) scale(0.2)';
+  inputA.style.opacity = '0';
+
+  inputB.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  inputB.style.transform = 'translateX(250px) scale(0.2)';
+  inputB.style.opacity = '0';
+
+  // Step 4: Attention block inhale
+  attentionBlock.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  attentionBlock.style.transform = 'scale(1.05)';
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Step 5: Processing with progress bar
+  if (attentionText) attentionText.style.opacity = '0.5';
+  if (progressContainer) progressContainer.style.opacity = '1';
+  if (progressBar) progressBar.style.width = '100%';
+
+  await new Promise(r => setTimeout(r, 1200));
+
+  // Step 6: Projection
+  if (progressContainer) progressContainer.style.opacity = '0';
+  if (attentionText) attentionText.style.opacity = '1';
+  attentionBlock.style.transform = 'scale(1)';
+
+  if (connLeft) connLeft.classList.remove('active-flow');
+  if (connRight) connRight.classList.add('active-flow');
+
+  output.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  output.style.opacity = '1';
+  output.style.transform = 'translateX(0) scale(1)';
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Step 7: Reset
+  inputA.style.transition = 'all 0.3s ease';
+  inputA.style.transform = 'translateX(0) scale(1)';
+  inputA.style.opacity = '1';
+
+  inputB.style.transition = 'all 0.3s ease';
+  inputB.style.transform = 'translateX(0) scale(1)';
+  inputB.style.opacity = '1';
+
+  if (progressBar) progressBar.style.width = '0%';
+  if (connRight) connRight.classList.remove('active-flow');
+
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// ============================================================
+//  Detail Panel Zoom
+// ============================================================
+let detailZoom = 0.5;
+let detailPanX = 0, detailPanY = 0;
+let detailPanning = false;
+let detailStartX = 0, detailStartY = 0;
+let detailStartPanX = 0, detailStartPanY = 0;
+
+const detailBody = document.getElementById('detail-body');
+
+function updateDetailTransform() {
+  const wrap = document.getElementById('detail-content-wrap');
+  if (wrap) {
+    wrap.style.transform = `translate(${detailPanX}px, ${detailPanY}px) scale(${detailZoom})`;
+  }
+}
+
+if (detailBody) {
+  detailBody.addEventListener('mousedown', e => {
+    if (e.target.closest('.detail-zoom-controls') || e.target.closest('.back-btn') || e.target.closest('.detail-run-btn')) return;
+    detailPanning = true;
+    detailStartX = e.clientX;
+    detailStartY = e.clientY;
+    detailStartPanX = detailPanX;
+    detailStartPanY = detailPanY;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!detailPanning) return;
+    detailPanX = detailStartPanX + (e.clientX - detailStartX);
+    detailPanY = detailStartPanY + (e.clientY - detailStartY);
+    updateDetailTransform();
+  });
+  window.addEventListener('mouseup', () => { detailPanning = false; });
+  detailBody.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    detailZoom = Math.max(0.2, Math.min(2.5, detailZoom * delta));
+    updateDetailTransform();
+  }, { passive: false });
+}
+
+function detailZoomIn() { detailZoom = Math.min(2.5, detailZoom * 1.2); updateDetailTransform(); }
+function detailZoomOut() { detailZoom = Math.max(0.2, detailZoom / 1.2); updateDetailTransform(); }
+
+// ============================================================
+//  Detail Panel
+// ============================================================
+const DETAIL_HTML = {
+  ie: `
+<div class="detail-inner" id="ie-detail">
+  <div style="position:absolute;top:10px;left:16px;font-family:'Space Grotesk',sans-serif;font-size:10px;color:#a38c85;letter-spacing:0.1em;text-transform:uppercase;">MODULE 001 · IMAGE ENCODER</div>
+  <svg class="detail-svg" width="900" height="600" style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible;">
+    <line stroke="#9CA3AF" stroke-dasharray="10 10" stroke-width="3" x1="220" x2="340" y1="300" y2="300"/>
+    <line stroke="#9CA3AF" stroke-dasharray="10 10" stroke-width="3" x1="640" x2="760" y1="300" y2="300"/>
+  </svg>
+  <div style="position:relative;width:900px;height:600px;display:flex;align-items:center;justify-content:space-around;padding:0 60px;">
+    <!-- Input Stack -->
+    <div class="relative w-32 h-32" id="ie-input">
+      <div class="absolute w-full h-full bg-[#D97757]/40 rounded-[24px] transform translate-x-6 -translate-y-6" style="position:absolute;width:128px;height:128px;top:0;left:0;opacity:0.4;border-radius:24px;background:rgba(217,119,87,0.4);"></div>
+      <div class="absolute w-full h-full bg-[#D97757]/70 rounded-[24px] transform translate-x-3 -translate-y-3" style="position:absolute;width:128px;height:128px;top:0;left:0;opacity:0.7;border-radius:24px;background:rgba(217,119,87,0.7);"></div>
+      <div class="absolute w-full h-full bg-[#D97757] rounded-[24px]" style="position:absolute;width:128px;height:128px;top:0;left:0;background:#D97757;border-radius:24px;border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;text-white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;box-shadow:0 20px 40px rgba(0,0,0,0.05);">
+        [1, 3, 256, 256]
+      </div>
+      <div style="position:absolute;top:140px;left:0;right:0;text-align:center;font-family:'Space Grotesk',sans-serif;font-size:11px;color:#a38c85;">Input Frame</div>
+    </div>
+    <!-- Connector 1 -->
+    <div style="flex:1;height:2px;position:relative;display:flex;align-items:center;margin:0 20px;">
+      <div id="ie-conn1" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;">
+        <div style="position:absolute;right:-6px;top:-6px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #D1D5DB;"></div>
+      </div>
+    </div>
+    <!-- Trapezoid Encoder -->
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+      <div id="ie-encoder" style="width:240px;height:180px;background:#353535;display:flex;align-items:center;justify-content:center;clip-path:polygon(0 0, 100% 10%, 100% 90%, 0 100%);border-radius:12px;position:relative;transition:transform 0.8s cubic-bezier(0.4,0,0.2,1);" id="ie-encoder-block">
+        <span id="ie-encoder-text" style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:#f0dfda;z-index:1;position:relative;">图像编码器</span>
+        <div id="ie-progress-container" style="position:absolute;bottom:30%;left:50%;transform:translateX(-50%);width:120px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;opacity:0;">
+          <div id="ie-progress-bar" style="width:0%;height:100%;background:#D97757;transition:width 1.2s linear;"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Connector 2 -->
+    <div style="flex:1;height:2px;position:relative;display:flex;align-items:center;margin:0 20px;">
+      <div id="ie-conn2" style="width:100%;height:2px;border-top:2px dashed #D1D5DB;position:relative;">
+        <div style="position:absolute;right:-6px;top:-6px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #D1D5DB;"></div>
+      </div>
+    </div>
+    <!-- Output Stack -->
+    <div id="ie-output" style="position:relative;display:flex;flex-direction:column;align-items:center;">
+      <div style="width:128px;height:128px;background:#D97757;border-radius:24px;border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;text-white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;box-shadow:0 20px 40px rgba(0,0,0,0.05);">
+        [1, 256, 64, 64]
+      </div>
+      <div style="position:absolute;top:140px;left:0;right:0;text-align:center;font-family:'Space Grotesk',sans-serif;font-size:11px;color:#a38c85;">Feature Map</div>
+    </div>
+  </div>
+</div>`,
+
+  ma: `
+<div class="detail-inner" id="ma-detail">
+  <div style="position:absolute;top:10px;left:16px;font-family:'Space Grotesk',sans-serif;font-size:10px;color:#a38c85;letter-spacing:0.1em;text-transform:uppercase;">MODULE 002 · MEMORY ATTENTION</div>
+  <svg class="detail-svg" width="900" height="600" style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible;">
+    <defs>
+      <marker id="ma-arrow" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="8" refy="5" viewbox="0 0 10 10">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#9CA3AF"/>
+      </marker>
+    </defs>
+    <line x1="360" x2="420" y1="220" y2="220" stroke="#9CA3AF" stroke-dasharray="5,5" stroke-width="2" marker-end="url(#ma-arrow)"/>
+    <line x1="360" x2="420" y1="380" y2="380" stroke="#9CA3AF" stroke-dasharray="5,5" stroke-width="2" marker-end="url(#ma-arrow)"/>
+    <line x1="700" x2="760" y1="300" y2="300" stroke="#9CA3AF" stroke-width="4" marker-end="url(#ma-arrow)"/>
+  </svg>
+  <div style="position:relative;width:900px;height:600px;display:flex;align-items:center;justify-content:center;gap:80px;">
+    <!-- Dual Input -->
+    <div style="display:flex;flex-direction:column;gap:40px;">
+      <div class="relative" style="width:160px;height:160px;">
+        <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.4);border-radius:16px;top:-12px;left:-12px;opacity:0.6;"></div>
+        <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.7);border-radius:16px;top:-6px;left:-6px;opacity:0.8;"></div>
+        <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:16px;top:0;left:0;display:flex;align-items:center;justify-content:center;color:white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;text-align:center;line-height:1.4;">
+          KV<br/>Memory
+        </div>
+      </div>
+      <div class="relative" style="width:160px;height:160px;">
+        <div style="position:absolute;width:100%;height:100%;background:rgba(74,108,247,0.4);border-radius:16px;top:-12px;left:-12px;opacity:0.6;"></div>
+        <div style="position:absolute;width:100%;height:100%;background:rgba(74,108,247,0.7);border-radius:16px;top:-6px;left:-6px;opacity:0.8;"></div>
+        <div style="position:absolute;width:100%;height:100%;background:#4A6CF7;border-radius:16px;top:0;left:0;display:flex;align-items:center;justify-content:center;color:white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;text-align:center;line-height:1.4;">
+          Image<br/>Embeddings
+        </div>
+      </div>
+    </div>
+    <!-- Memory Attention Block -->
+    <div style="width:200px;height:240px;background:#353535;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;position:relative;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:#a38c85;letter-spacing:0.1em;text-transform:uppercase;">Memory Attention</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:#f0dfda;">记忆注意力</div>
+      <div style="width:140px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
+        <div style="width:60%;height:100%;background:#4A6CF7;border-radius:2px;"></div>
+      </div>
+      <div style="font-size:11px;color:#a38c85;">q-channel attention</div>
+    </div>
+    <!-- Output -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+      <div style="width:128px;height:128px;background:#4A6CF7;border-radius:16px;border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;color:white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;text-align:center;line-height:1.4;box-shadow:0 20px 40px rgba(0,0,0,0.05);">
+        Conditioned<br/>Features
+      </div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:#a38c85;">Output</div>
+    </div>
+  </div>
+</div>`,
+
+  md: `
+<div class="detail-inner" id="md-detail">
+  <div style="position:absolute;top:10px;left:16px;font-family:'Space Grotesk',sans-serif;font-size:10px;color:#a38c85;letter-spacing:0.1em;text-transform:uppercase;">MODULE 003 · MASK DECODER</div>
+  <div style="position:relative;width:900px;height:600px;display:flex;align-items:center;justify-content:center;gap:60px;padding:0 40px;">
+    <!-- Input: Image Embeddings + Prompts -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+      <div style="width:140px;height:100px;background:rgba(74,108,247,0.7);border-radius:16px;display:flex;align-items:center;justify-content:center;color:white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;text-align:center;line-height:1.4;">
+        Image<br/>Embeddings
+      </div>
+      <div style="display:flex;gap:8px;">
+        <div style="width:40px;height:40px;background:#8B8B8B;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;">mask</div>
+        <div style="width:40px;height:40px;background:#8B8B8B;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;">pts</div>
+        <div style="width:40px;height:40px;background:#8B8B8B;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:600;">box</div>
+      </div>
+    </div>
+    <!-- Arrow -->
+    <div style="font-size:24px;color:#9CA3AF;">→</div>
+    <!-- Mask Decoder Block -->
+    <div style="width:260px;height:200px;background:#2A2A2A;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;position:relative;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:#a38c85;letter-spacing:0.1em;text-transform:uppercase;">Mask Decoder</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:#f0dfda;">Mask 解码器</div>
+      <div style="width:160px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
+        <div style="width:80%;height:100%;background:#D97757;border-radius:2px;"></div>
+      </div>
+      <div style="font-size:11px;color:#a38c85;">Two-way Transformer</div>
+    </div>
+    <!-- Arrow -->
+    <div style="font-size:24px;color:#9CA3AF;">→</div>
+    <!-- Output Mask -->
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;">
+      <div style="position:relative;width:140px;height:140px;">
+        <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.4);border-radius:16px;top:-6px;left:-6px;"></div>
+        <div style="position:absolute;width:100%;height:100%;background:rgba(217,119,87,0.7);border-radius:16px;top:-3px;left:-3px;"></div>
+        <div style="position:absolute;width:100%;height:100%;background:#D97757;border-radius:16px;top:0;left:0;display:flex;align-items:center;justify-content:center;color:white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;text-align:center;line-height:1.4;">
+          [1, 3, H, W]<br/>Segmentation<br/>Mask
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`,
+
+  me: `
+<div class="detail-inner" id="me-detail">
+  <div style="position:absolute;top:10px;left:16px;font-family:'Space Grotesk',sans-serif;font-size:10px;color:#a38c85;letter-spacing:0.1em;text-transform:uppercase;">MODULE 004 · MEMORY ENCODER</div>
+  <div style="position:relative;width:900px;height:600px;display:flex;align-items:center;justify-content:center;gap:60px;padding:0 40px;">
+    <!-- Dual Input -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div style="width:120px;height:90px;background:rgba(217,119,87,0.7);border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12px;text-align:center;">
+        Mask<br/>Prediction
+      </div>
+      <div style="width:120px;height:90px;background:rgba(74,108,247,0.5);border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:12px;text-align:center;">
+        Image<br/>Features
+      </div>
+    </div>
+    <!-- Arrow -->
+    <div style="font-size:24px;color:#9CA3AF;">→</div>
+    <!-- Memory Encoder Block -->
+    <div style="width:240px;height:180px;background:#353535;clip-path:polygon(0 25%, 100% 0, 100% 100%, 0 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:#a38c85;letter-spacing:0.1em;text-transform:uppercase;">Memory Encoder</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:#f0dfda;">记忆编码</div>
+      <div style="font-size:11px;color:#a38c85;">Lightweight CNN</div>
+    </div>
+    <!-- Arrow -->
+    <div style="font-size:24px;color:#9CA3AF;">→</div>
+    <!-- Memory Bank -->
+    <div style="width:120px;height:100px;background:#A54F31;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;gap:6px;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:11px;opacity:0.8;">Memory</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;">记忆库</div>
+    </div>
+  </div>
+</div>`
+};
+
+function openDetail(moduleId) {
+  const panel = document.getElementById('detail-panel');
+  const body = document.getElementById('detail-body');
+  const title = document.getElementById('detail-title');
+
+  const names = { ie: 'IMAGE ENCODER', ma: 'MEMORY ATTENTION', md: 'MASK DECODER', me: 'MEMORY ENCODER' };
+  title.textContent = 'MODULE DETAIL · ' + (names[moduleId] || moduleId.toUpperCase());
+
+  body.innerHTML = DETAIL_HTML[moduleId] || '';
+
+  // Wrap content for zoom/pan
+  const inner = body.querySelector('.detail-inner');
+  if (inner) {
+    inner.style.display = 'inline-block';
+    const wrap = document.createElement('div');
+    wrap.id = 'detail-content-wrap';
+    wrap.style.cssText = 'transform-origin:center center;will-change:transform;transition:transform 200ms ease;';
+    inner.parentNode.insertBefore(wrap, inner);
+    wrap.appendChild(inner);
+  }
+
+  detailZoom = 0.5;
+  detailPanX = 0;
+  detailPanY = 0;
+  updateDetailTransform();
+
+  panel.classList.add('visible');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('visible');
+}
+
+function runDetailAnimation() {
+  // Simple animation placeholder — highlight the main block
+  const block = document.querySelector('.detail-inner [id$="-encoder"], .detail-inner [id$="-detail"]');
+  if (block) {
+    block.style.transition = 'filter 0.5s';
+    block.style.filter = 'brightness(1.5)';
+    setTimeout(() => { block.style.filter = ''; }, 800);
+  }
+}
+
+// ============================================================
+//  Reload Core Flow Animation
+// ============================================================
+function reloadCoreFlow() {
+  const archCanvas = document.getElementById('arch-canvas');
+  const reloadBtn = document.getElementById('reload-btn-sidebar');
+
+  if (!archCanvas || !reloadBtn) return;
+
+  // 禁用按钮防止重复点击
+  reloadBtn.disabled = true;
+  reloadBtn.style.opacity = '0.5';
+
+  // 添加旋转动画到刷新图标
+  const icon = reloadBtn.querySelector('.material-icons-outlined');
+  if (icon) {
+    icon.style.transition = 'transform 0.5s ease';
+    icon.style.transform = 'rotate(360deg)';
+  }
+
+  // 消失动画
+  archCanvas.style.transition = 'opacity 0.25s ease-out, transform 0.25s ease-out';
+  archCanvas.style.opacity = '0';
+  archCanvas.style.transform = 'scale(0.6) scale(0.95)';
+
+  // 0.5秒后重新显示
+  setTimeout(() => {
+    // 重置旋转图标
+    if (icon) {
+      icon.style.transition = 'none';
+      icon.style.transform = 'rotate(0deg)';
+    }
+
+    // 重新显示动画
+    archCanvas.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-in';
+    archCanvas.style.opacity = '1';
+    archCanvas.style.transform = 'scale(0.6)';
+
+    // 恢复按钮状态
+    setTimeout(() => {
+      reloadBtn.disabled = false;
+      reloadBtn.style.opacity = '1';
+    }, 250);
+  }, 500);
+}
+
+// ============================================================
+//  Copy Code Function
+// ============================================================
+function copyCode(button) {
+  const pre = button.parentElement.querySelector('pre code');
+  if (pre) {
+    const text = pre.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      // 显示复制成功状态
+      const icon = button.querySelector('.material-icons-outlined');
+      if (icon) {
+        const originalText = icon.textContent;
+        icon.textContent = 'check';
+        icon.style.color = '#22c55e';
+        button.style.borderColor = '#22c55e';
+        setTimeout(() => {
+          icon.textContent = originalText;
+          icon.style.color = '#6B7280';
+          button.style.borderColor = '#E5E5E5';
+        }, 2000);
+      }
+    }).catch(err => {
+      console.error('复制失败:', err);
+    });
+  }
+}
+
+// ============================================================
+//  Image Encoder Detail View Switching
+// ============================================================
+function toggleIEPanel(panelId) {
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.toggle('open');
+
+    // 更新对应按钮的图标
+    const isOpen = panel.classList.contains('open');
+    let btnId = null;
+    if (panelId === 'ie-top-panel') {
+      btnId = 'ie-top-btn';
+    } else if (panelId === 'ie-bottom-panel') {
+      btnId = 'ie-bottom-btn';
+    }
+
+    if (btnId) {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        const icon = btn.querySelector('.material-icons-outlined');
+        if (icon) {
+          icon.textContent = isOpen ? 'remove' : 'add';
+        }
+      }
+    }
+  }
+}
+
+// 当前是否在详细页中
+let isInDetailView = false;
+
+// ========== Context Menu for Module Blocks ==========
+let currentContextModule = null;
+
+// 模块ID到段落ID的映射
+const moduleToParagraphMap = {
+  'image-encoder': 'text-image-encoder',
+  'memory-attention': 'text-memory-attention',
+  'mask-decoder': 'text-mask-decoder',
+  'memory-encoder': 'text-memory-encoder'
+};
+
+// 右键直接跳转到对应文档段落
+function jumpToParagraph(event, moduleId) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const paragraphId = moduleToParagraphMap[moduleId];
+  const element = document.getElementById(paragraphId);
+  const viewOverview = document.getElementById('view-overview');
+
+  if (element && viewOverview) {
+    // 计算元素相对于滚动容器的位置
+    const containerRect = viewOverview.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const scrollTop = viewOverview.scrollTop;
+    const offset = elementRect.top - containerRect.top + scrollTop - 100; // 100px 顶部偏移
+
+    // 平滑滚动
+    viewOverview.scrollTo({
+      top: offset,
+      behavior: 'smooth'
+    });
+
+    // 高亮段落
+    highlightText(paragraphId);
+
+    // 3秒后取消高亮
+    setTimeout(() => {
+      if (!isInDetailView) {
+        unhighlightText(paragraphId);
+      }
+    }, 3000);
+  }
+}
+
+// ========== End Context Menu ==========
+
+// 高亮左侧文字段落
+function highlightText(elementId) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.style.backgroundColor = 'rgba(217, 119, 87, 0.2)';
+    element.style.transition = 'background-color 0.3s ease';
+    element.style.borderRadius = '4px';
+  }
+}
+
+function unhighlightText(elementId) {
+  // 如果在详细页中，不取消高亮
+  if (isInDetailView) return;
+
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.style.backgroundColor = 'transparent';
+  }
+}
+
+function showIEDetail() {
+  const archCanvas = document.getElementById('arch-canvas');
+  const ieDetailView = document.getElementById('ie-detail-view');
+  const ieCanvas = document.getElementById('ie-canvas');
+  const backBtn = document.getElementById('back-to-overview-btn');
+  const zoomControls = document.getElementById('zoom-controls-overview');
+
+  if (!archCanvas || !ieDetailView) return;
+
+  // 标记进入详细页
+  isInDetailView = true;
+
+  // 高亮左侧文字段落
+  highlightText('text-image-encoder');
+
+  // 隐藏总览视图
+  archCanvas.style.opacity = '0';
+  archCanvas.style.pointerEvents = 'none';
+
+  // 隐藏缩放控件
+  if (zoomControls) zoomControls.style.display = 'none';
+
+  // 显示返回按钮
+  if (backBtn) backBtn.style.display = 'flex';
+
+  // 重置 IE 画布缩放和偏移
+  if (ieCanvas) {
+    ieCanvas.style.transition = 'none';
+    ieCanvas.style.transform = 'scale(0.55) translate(0px, 0px)';
+    ieCanvas.style.opacity = '1';
+    ieCanvas.style.cursor = 'grab';
+  }
+
+  // 显示 Image Encoder 详细视图
+  ieDetailView.style.display = 'block';
+  setTimeout(() => {
+    ieDetailView.style.opacity = '1';
+  }, 50);
+}
+
+function showOverviewFlow() {
+  const archCanvas = document.getElementById('arch-canvas');
+  const ieDetailView = document.getElementById('ie-detail-view');
+  const maDetailView = document.getElementById('ma-detail-view');
+  const mdDetailView = document.getElementById('md-detail-view');
+  const meDetailView = document.getElementById('me-detail-view');
+  const backBtn = document.getElementById('back-to-overview-btn');
+  const zoomControls = document.getElementById('zoom-controls-overview');
+
+  if (!archCanvas) return;
+
+  // 隐藏所有详细视图
+  if (ieDetailView) {
+    ieDetailView.style.opacity = '0';
+    setTimeout(() => {
+      ieDetailView.style.display = 'none';
+    }, 400);
+  }
+
+  if (maDetailView) {
+    maDetailView.style.opacity = '0';
+    setTimeout(() => {
+      maDetailView.style.display = 'none';
+    }, 400);
+  }
+
+  if (mdDetailView) {
+    mdDetailView.style.opacity = '0';
+    setTimeout(() => {
+      mdDetailView.style.display = 'none';
+    }, 400);
+  }
+
+  if (meDetailView) {
+    meDetailView.style.opacity = '0';
+    setTimeout(() => {
+      meDetailView.style.display = 'none';
+    }, 400);
+  }
+
+  // 取消所有高亮
+  unhighlightText('text-image-encoder');
+  unhighlightText('text-memory-attention');
+  unhighlightText('text-mask-decoder');
+  unhighlightText('text-memory-encoder');
+
+  // 标记退出详细页
+  isInDetailView = false;
+
+  // 强制取消所有高亮（确保退出时一定取消）
+  ['text-image-encoder', 'text-memory-attention', 'text-mask-decoder', 'text-memory-encoder'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.backgroundColor = 'transparent';
+  });
+
+  // 显示总览视图
+  archCanvas.style.opacity = '1';
+  archCanvas.style.pointerEvents = 'auto';
+
+  // 显示缩放控件
+  if (zoomControls) zoomControls.style.display = 'flex';
+
+  // 隐藏返回按钮
+  if (backBtn) backBtn.style.display = 'none';
+}
+
+// ============================================================
+//  Mask Decoder Detail View Zoom Controls
+// ============================================================
+(function() {
+  const mdDetailView = document.getElementById('md-detail-view');
+  const mdCanvas = document.getElementById('md-canvas');
+  const mdZoomInBtn = document.getElementById('md-zoom-in-btn');
+  const mdZoomOutBtn = document.getElementById('md-zoom-out-btn');
+  const mdTooltip = document.getElementById('md-zoom-tooltip');
+
+  if (!mdCanvas) return;
+
+  let mdScale = 0.55;
+  let mdTranslateX = 0;
+  let mdTranslateY = 0;
+  let mdIsDragging = false;
+  let mdStartX = 0, mdStartY = 0;
+  let mdTooltipTimeout;
+
+  function mdUpdateTransform() {
+    mdCanvas.style.transform = `scale(${mdScale}) translate(${mdTranslateX}px, ${mdTranslateY}px)`;
+    mdShowTooltip();
+  }
+
+  function mdShowTooltip() {
+    if (!mdTooltip) return;
+    mdTooltip.innerText = Math.round(mdScale * 100) + '%';
+    mdTooltip.style.opacity = '1';
+    clearTimeout(mdTooltipTimeout);
+    mdTooltipTimeout = setTimeout(() => {
+      mdTooltip.style.opacity = '0';
+    }, 1000);
+  }
+
+  if (mdZoomInBtn) {
+    mdZoomInBtn.onclick = () => {
+      mdScale = Math.min(2.5, mdScale + 0.15);
+      mdCanvas.style.transition = 'transform 200ms ease-out';
+      mdUpdateTransform();
+    };
+  }
+  if (mdZoomOutBtn) {
+    mdZoomOutBtn.onclick = () => {
+      mdScale = Math.max(0.2, mdScale - 0.15);
+      mdCanvas.style.transition = 'transform 200ms ease-out';
+      mdUpdateTransform();
+    };
+  }
+
+  // 鼠标滚轮缩放
+  if (mdDetailView) {
+    mdDetailView.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      mdScale = Math.min(2.5, Math.max(0.2, mdScale + delta));
+      mdCanvas.style.transition = 'transform 150ms ease-out';
+      mdUpdateTransform();
+    }, { passive: false });
+
+    // 鼠标拖拽
+    mdDetailView.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button') || e.target.closest('#md-run-btn')) return;
+      if (mdScale > 0.4) {
+        mdIsDragging = true;
+        mdStartX = e.clientX - mdTranslateX;
+        mdStartY = e.clientY - mdTranslateY;
+        mdCanvas.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!mdIsDragging) return;
+      mdTranslateX = e.clientX - mdStartX;
+      mdTranslateY = e.clientY - mdStartY;
+      mdCanvas.style.transition = 'none';
+      mdUpdateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (mdIsDragging) {
+        mdIsDragging = false;
+        mdCanvas.style.cursor = 'grab';
+      }
+    });
+
+    // 双击重置
+    mdDetailView.addEventListener('dblclick', () => {
+      mdScale = 0.55;
+      mdTranslateX = 0;
+      mdTranslateY = 0;
+      mdCanvas.style.transition = 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)';
+      mdUpdateTransform();
+    });
+  }
+})();
+
+// ============================================================
+//  Reload MD Detail View
+// ============================================================
+function reloadMDView() {
+  const mdCanvas = document.getElementById('md-canvas');
+  const mdReloadBtn = document.getElementById('md-reload-btn');
+
+  if (!mdCanvas || !mdReloadBtn) return;
+
+  mdReloadBtn.disabled = true;
+  mdReloadBtn.style.opacity = '0.5';
+
+  const icon = mdReloadBtn.querySelector('.material-icons-outlined');
+  if (icon) {
+    icon.style.transition = 'transform 0.5s ease';
+    icon.style.transform = 'rotate(360deg)';
+  }
+
+  mdCanvas.style.transition = 'opacity 0.25s ease-out, transform 0.25s ease-out';
+  mdCanvas.style.opacity = '0';
+  mdCanvas.style.transform = 'scale(0.55) scale(0.95)';
+
+  setTimeout(() => {
+    if (icon) {
+      icon.style.transition = 'none';
+      icon.style.transform = 'rotate(0deg)';
+    }
+
+    mdCanvas.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-in';
+    mdCanvas.style.opacity = '1';
+    mdCanvas.style.transform = 'scale(0.55)';
+
+    setTimeout(() => {
+      mdReloadBtn.disabled = false;
+      mdReloadBtn.style.opacity = '1';
+    }, 250);
+  }, 500);
+}
+
+// ============================================================
+//  Mask Decoder Detail View Switching
+// ============================================================
+function toggleMDPanel(panelId) {
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.toggle('open');
+
+    const isOpen = panel.classList.contains('open');
+    let btnId = null;
+    if (panelId === 'md-top-panel') {
+      btnId = 'md-top-btn';
+    } else if (panelId === 'md-bottom-panel') {
+      btnId = 'md-bottom-btn';
+    }
+
+    if (btnId) {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        const icon = btn.querySelector('.material-icons-outlined');
+        if (icon) {
+          icon.textContent = isOpen ? 'remove' : 'add';
+        }
+      }
+    }
+  }
+}
+
+function showMDDetail() {
+  const archCanvas = document.getElementById('arch-canvas');
+  const mdDetailView = document.getElementById('md-detail-view');
+  const mdCanvas = document.getElementById('md-canvas');
+  const backBtn = document.getElementById('back-to-overview-btn');
+  const zoomControls = document.getElementById('zoom-controls-overview');
+
+  if (!archCanvas || !mdDetailView) return;
+
+  // 标记进入详细页
+  isInDetailView = true;
+
+  // 高亮左侧文字段落
+  highlightText('text-mask-decoder');
+
+  // 隐藏总览视图
+  archCanvas.style.opacity = '0';
+  archCanvas.style.pointerEvents = 'none';
+
+  // 隐藏缩放控件
+  if (zoomControls) zoomControls.style.display = 'none';
+
+  // 显示返回按钮
+  if (backBtn) backBtn.style.display = 'flex';
+
+  // 重置 MD 画布缩放和偏移
+  if (mdCanvas) {
+    mdCanvas.style.transition = 'none';
+    mdCanvas.style.transform = 'scale(0.55) translate(0px, 0px)';
+    mdCanvas.style.opacity = '1';
+    mdCanvas.style.cursor = 'grab';
+  }
+
+  // 显示 Mask Decoder 详细视图
+  mdDetailView.style.display = 'block';
+  setTimeout(() => {
+    mdDetailView.style.opacity = '1';
+  }, 50);
+}
+
+// ============================================================
+//  Mask Decoder Detail Animation
+// ============================================================
+async function runMDAnimation() {
+  const btn = document.getElementById('md-run-btn');
+  if (btn && btn.disabled) return;
+
+  const inputA = document.getElementById('md-input-a');
+  const inputB = document.getElementById('md-input-b');
+  const userClickText = document.getElementById('md-user-click-text');
+  const clickConnector = document.getElementById('md-click-connector');
+  const clickArrow = document.getElementById('md-click-arrow');
+  const decoderBlock = document.getElementById('md-decoder-block');
+  const decoderText = document.getElementById('md-decoder-text');
+  const output = document.getElementById('md-output-tensor');
+  const progressContainer = document.getElementById('md-progress-container');
+  const progressBar = document.getElementById('md-progress-bar');
+  const leftConnTop = document.getElementById('md-left-conn-top');
+  const leftArrowTop = document.getElementById('md-left-arrow-top');
+  const leftConnBottom = document.getElementById('md-left-conn-bottom');
+  const rightConn = document.getElementById('md-right-conn');
+  const rightArrow = document.getElementById('md-right-arrow');
+
+  if (!inputA || !inputB || !decoderBlock || !output) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+  }
+
+  // Trigger: Instant reset
+  output.style.transition = 'none';
+  output.classList.add('output-hidden');
+  output.classList.remove('output-initial', 'output-projecting');
+  if (leftConnTop) leftConnTop.classList.remove('active-flow');
+  if (leftArrowTop) leftArrowTop.classList.remove('active-flow');
+  if (leftConnBottom) leftConnBottom.classList.remove('active-flow');
+  if (rightConn) rightConn.classList.remove('active-flow');
+  if (rightArrow) rightArrow.classList.remove('active-flow');
+  if (clickConnector) clickConnector.classList.remove('active-flow');
+  if (clickArrow) clickArrow.classList.remove('active-flow');
+  if (userClickText) userClickText.classList.remove('md-pulse-text');
+  inputA.classList.remove('ingest-anim-active');
+  inputB.classList.remove('ingest-anim-active-bottom');
+  decoderBlock.classList.remove('inhale-anim-active');
+  if (progressBar) progressBar.style.width = '0%';
+
+  // 2s Pause
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Phase 1: Pulse & Prompt Encoder
+  if (userClickText) userClickText.classList.add('md-pulse-text');
+  if (clickConnector) clickConnector.classList.add('active-flow');
+  if (clickArrow) clickArrow.classList.add('active-flow');
+
+  await new Promise(r => setTimeout(r, 1000));
+  if (userClickText) userClickText.classList.remove('md-pulse-text');
+
+  // Phase 2: Dual Ingestion
+  if (leftConnTop) leftConnTop.classList.add('active-flow');
+  if (leftArrowTop) leftArrowTop.classList.add('active-flow');
+  if (leftConnBottom) leftConnBottom.classList.add('active-flow');
+
+  inputA.classList.add('ingest-anim-active');
+  inputB.classList.add('ingest-anim-active-bottom');
+  decoderBlock.classList.add('inhale-anim-active');
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Phase 3: Processing (Mask Decoder)
+  if (decoderText) decoderText.style.opacity = '0.5';
+  if (progressContainer) progressContainer.style.opacity = '1';
+  if (progressBar) progressBar.style.width = '100%';
+
+  await new Promise(r => setTimeout(r, 1200));
+
+  // Phase 4: Projection
+  if (progressContainer) progressContainer.style.opacity = '0';
+  if (decoderText) decoderText.style.opacity = '1';
+  decoderBlock.classList.remove('inhale-anim-active');
+
+  if (leftConnTop) leftConnTop.classList.remove('active-flow');
+  if (leftArrowTop) leftArrowTop.classList.remove('active-flow');
+  if (leftConnBottom) leftConnBottom.classList.remove('active-flow');
+  if (clickConnector) clickConnector.classList.remove('active-flow');
+  if (clickArrow) clickArrow.classList.remove('active-flow');
+  if (rightConn) rightConn.classList.add('active-flow');
+  if (rightArrow) rightArrow.classList.add('active-flow');
+
+  output.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  output.classList.remove('output-hidden');
+  output.classList.add('output-projecting');
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Reset state
+  inputA.classList.remove('ingest-anim-active');
+  inputB.classList.remove('ingest-anim-active-bottom');
+  if (rightConn) rightConn.classList.remove('active-flow');
+  if (rightArrow) rightArrow.classList.remove('active-flow');
+
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// ============================================================
+//  Memory Encoder Detail View
+// ============================================================
+function toggleMEPanel(panelId) {
+  const panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.toggle('open');
+
+    const isOpen = panel.classList.contains('open');
+    let btnId = null;
+    if (panelId === 'me-top-panel') {
+      btnId = 'me-top-btn';
+    } else if (panelId === 'me-bottom-panel') {
+      btnId = 'me-bottom-btn';
+    }
+
+    if (btnId) {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        const icon = btn.querySelector('.material-icons-outlined');
+        if (icon) {
+          icon.textContent = isOpen ? 'remove' : 'add';
+        }
+      }
+    }
+  }
+}
+
+function showMEDetail() {
+  const archCanvas = document.getElementById('arch-canvas');
+  const meDetailView = document.getElementById('me-detail-view');
+  const meCanvas = document.getElementById('me-canvas');
+  const backBtn = document.getElementById('back-to-overview-btn');
+  const zoomControls = document.getElementById('zoom-controls-overview');
+
+  if (!archCanvas || !meDetailView) return;
+
+  // 标记进入详细页
+  isInDetailView = true;
+
+  // 高亮左侧文字段落
+  highlightText('text-memory-encoder');
+
+  // 隐藏总览视图
+  archCanvas.style.opacity = '0';
+  archCanvas.style.pointerEvents = 'none';
+
+  // 隐藏缩放控件
+  if (zoomControls) zoomControls.style.display = 'none';
+
+  // 显示返回按钮
+  if (backBtn) backBtn.style.display = 'flex';
+
+  // 重置 ME 画布缩放和偏移
+  if (meCanvas) {
+    meCanvas.style.transition = 'none';
+    meCanvas.style.transform = 'scale(0.55) translate(0px, 0px)';
+    meCanvas.style.opacity = '1';
+    meCanvas.style.cursor = 'grab';
+  }
+
+  // 显示 Memory Encoder 详细视图
+  meDetailView.style.display = 'block';
+  setTimeout(() => {
+    meDetailView.style.opacity = '1';
+  }, 50);
+}
+
+// ME Zoom Controls
+(function() {
+  const meDetailView = document.getElementById('me-detail-view');
+  const meCanvas = document.getElementById('me-canvas');
+  const meZoomInBtn = document.getElementById('me-zoom-in-btn');
+  const meZoomOutBtn = document.getElementById('me-zoom-out-btn');
+  const meTooltip = document.getElementById('me-zoom-tooltip');
+
+  if (!meCanvas) return;
+
+  let meScale = 0.55;
+  let meTranslateX = 0;
+  let meTranslateY = 0;
+  let meIsDragging = false;
+  let meStartX = 0, meStartY = 0;
+  let meTooltipTimeout;
+
+  function meUpdateTransform() {
+    meCanvas.style.transform = `scale(${meScale}) translate(${meTranslateX}px, ${meTranslateY}px)`;
+    meShowTooltip();
+  }
+
+  function meShowTooltip() {
+    if (!meTooltip) return;
+    meTooltip.innerText = Math.round(meScale * 100) + '%';
+    meTooltip.style.opacity = '1';
+    clearTimeout(meTooltipTimeout);
+    meTooltipTimeout = setTimeout(() => {
+      meTooltip.style.opacity = '0';
+    }, 1000);
+  }
+
+  if (meZoomInBtn) {
+    meZoomInBtn.onclick = () => {
+      meScale = Math.min(2.5, meScale + 0.1);
+      meCanvas.style.transition = 'transform 150ms ease-out';
+      meUpdateTransform();
+    };
+  }
+
+  if (meZoomOutBtn) {
+    meZoomOutBtn.onclick = () => {
+      meScale = Math.max(0.2, meScale - 0.1);
+      meCanvas.style.transition = 'transform 150ms ease-out';
+      meUpdateTransform();
+    };
+  }
+
+  // Mouse wheel zoom
+  if (meDetailView) {
+    meDetailView.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      meScale = Math.min(2.5, Math.max(0.2, meScale + delta));
+      meCanvas.style.transition = 'transform 150ms ease-out';
+      meUpdateTransform();
+    }, { passive: false });
+
+    // 鼠标拖拽
+    meDetailView.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button') || e.target.closest('#me-run-btn')) return;
+      if (meScale > 0.4) {
+        meIsDragging = true;
+        meStartX = e.clientX - meTranslateX;
+        meStartY = e.clientY - meTranslateY;
+        meCanvas.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!meIsDragging) return;
+      meTranslateX = e.clientX - meStartX;
+      meTranslateY = e.clientY - meStartY;
+      meCanvas.style.transition = 'none';
+      meUpdateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (meIsDragging) {
+        meIsDragging = false;
+        meCanvas.style.cursor = 'grab';
+      }
+    });
+
+    // 双击重置
+    meDetailView.addEventListener('dblclick', () => {
+      meScale = 0.55;
+      meTranslateX = 0;
+      meTranslateY = 0;
+      meCanvas.style.transition = 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)';
+      meUpdateTransform();
+    });
+  }
+})();
+
+// Reload ME Detail View
+function reloadMEView() {
+  const meCanvas = document.getElementById('me-canvas');
+  const meReloadBtn = document.getElementById('me-reload-btn');
+
+  if (!meCanvas || !meReloadBtn) return;
+
+  meReloadBtn.disabled = true;
+  meReloadBtn.style.opacity = '0.5';
+
+  const icon = meReloadBtn.querySelector('.material-icons-outlined');
+  if (icon) {
+    icon.style.transition = 'transform 0.5s ease';
+    icon.style.transform = 'rotate(360deg)';
+  }
+
+  meCanvas.style.transition = 'opacity 0.25s ease-out, transform 0.25s ease-out';
+  meCanvas.style.opacity = '0';
+  meCanvas.style.transform = 'scale(0.55) scale(0.95)';
+
+  setTimeout(() => {
+    if (icon) {
+      icon.style.transition = 'none';
+      icon.style.transform = 'rotate(0deg)';
+    }
+
+    meCanvas.style.transition = 'opacity 0.25s ease-in, transform 0.25s ease-in';
+    meCanvas.style.opacity = '1';
+    meCanvas.style.transform = 'scale(0.55)';
+
+    setTimeout(() => {
+      meReloadBtn.disabled = false;
+      meReloadBtn.style.opacity = '1';
+    }, 250);
+  }, 500);
+}
+
+// ME Animation
+async function runMEAnimation() {
+  const btn = document.getElementById('me-run-btn');
+  if (btn && btn.disabled) return;
+
+  const inputA = document.getElementById('me-input-a');
+  const inputB = document.getElementById('me-input-b');
+  const encoderBlock = document.getElementById('me-encoder-block');
+  const encoderText = document.getElementById('me-encoder-text');
+  const output = document.getElementById('me-output-tensor');
+  const progressContainer = document.getElementById('me-progress-container');
+  const progressBar = document.getElementById('me-progress-bar');
+  const conn1 = document.getElementById('me-conn1');
+  const conn2 = document.getElementById('me-conn2');
+  const conn3 = document.getElementById('me-conn3');
+
+  if (!inputA || !inputB || !encoderBlock || !output) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+  }
+
+  // Reset
+  output.style.transition = 'none';
+  output.classList.add('me-output-hidden');
+  output.classList.remove('me-output-projecting');
+  if (conn1) conn1.classList.remove('active-flow');
+  if (conn2) conn2.classList.remove('active-flow');
+  if (conn3) conn3.classList.remove('active-flow');
+  inputA.classList.remove('me-ingest-anim-active');
+  inputB.classList.remove('me-ingest-anim-active');
+  encoderBlock.classList.remove('me-inhale-anim-active');
+  if (progressBar) progressBar.style.width = '0%';
+
+  // 2s Pause
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Phase 1: Activate connectors
+  if (conn1) conn1.classList.add('active-flow');
+  if (conn2) conn2.classList.add('active-flow');
+
+  // Phase 2: Dual Ingestion
+  inputA.classList.add('me-ingest-anim-active');
+  inputB.classList.add('me-ingest-anim-active');
+  encoderBlock.classList.add('me-inhale-anim-active');
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Phase 3: Processing
+  if (encoderText) encoderText.style.opacity = '0.5';
+  if (progressContainer) progressContainer.style.opacity = '1';
+  if (progressBar) progressBar.style.width = '100%';
+
+  await new Promise(r => setTimeout(r, 1200));
+
+  // Phase 4: Projection
+  if (progressContainer) progressContainer.style.opacity = '0';
+  if (encoderText) encoderText.style.opacity = '1';
+  encoderBlock.classList.remove('me-inhale-anim-active');
+
+  if (conn1) conn1.classList.remove('active-flow');
+  if (conn2) conn2.classList.remove('active-flow');
+  if (conn3) conn3.classList.add('active-flow');
+
+  output.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  output.classList.remove('me-output-hidden');
+  output.classList.add('me-output-projecting');
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Reset state
+  inputA.classList.remove('me-ingest-anim-active');
+  inputB.classList.remove('me-ingest-anim-active');
+  if (conn3) conn3.classList.remove('active-flow');
+
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// ============================================================
+//  Image Encoder Detail Animation
+// ============================================================
+async function runIEAnimation() {
+  const btn = document.getElementById('ie-run-btn');
+  if (btn && btn.disabled) return;
+
+  const input = document.getElementById('ie-input-tensor');
+  const encoder = document.getElementById('ie-encoder-detail');
+  const encoderText = document.getElementById('ie-encoder-text-detail');
+  const output = document.getElementById('ie-output-tensor');
+  const progressContainer = document.getElementById('ie-progress-container-detail');
+  const progressBar = document.getElementById('ie-progress-bar-detail');
+  const conn1 = document.getElementById('ie-conn1-detail');
+  const conn2 = document.getElementById('ie-conn2-detail');
+
+  if (!input || !encoder || !output) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+  }
+
+  // Step 0: Instant reset output
+  output.style.transition = 'none';
+  output.style.opacity = '0';
+  output.style.transform = 'translateX(-100px) scale(0.2)';
+
+  // Step 1: Intermission
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Step 2: Activate Flow (connectors)
+  if (conn1) conn1.classList.add('active-flow');
+  if (conn2) conn2.classList.add('active-flow');
+
+  // Step 3: Ingest input
+  input.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  input.style.transform = 'translateX(180px) scale(0.2)';
+  input.style.opacity = '0';
+
+  // Step 4: Encoder inhale
+  encoder.style.transition = 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  encoder.style.transform = 'scale(1.1)';
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Step 5: Processing with progress bar
+  if (encoderText) encoderText.style.opacity = '0.5';
+  if (progressContainer) progressContainer.style.opacity = '1';
+  if (progressBar) progressBar.style.width = '100%';
+
+  await new Promise(r => setTimeout(r, 1200));
+
+  // Step 6: Projection
+  if (progressContainer) progressContainer.style.opacity = '0';
+  if (encoderText) encoderText.style.opacity = '1';
+  encoder.style.transform = 'scale(1)';
+
+  output.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+  output.style.opacity = '1';
+  output.style.transform = 'translateX(0) scale(1)';
+
+  await new Promise(r => setTimeout(r, 800));
+
+  // Step 7: Reset
+  input.style.transition = 'all 0.3s ease';
+  input.style.transform = 'translateX(0) scale(1)';
+  input.style.opacity = '1';
+  if (progressBar) progressBar.style.width = '0%';
+  if (conn1) conn1.classList.remove('active-flow');
+  if (conn2) conn2.classList.remove('active-flow');
+
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+</script>
+</body>
+</html>
